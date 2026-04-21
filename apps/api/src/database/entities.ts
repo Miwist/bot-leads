@@ -21,10 +21,10 @@ export class User {
   @Column({ unique: true }) email: string;
   @Column() passwordHash: string;
   @Column({ default: "owner" }) role: string;
-  @Column({ type: "varchar", nullable: true })
-  companyId: string | null;
+  @Column({ type: "varchar", nullable: true }) companyId: string | null;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("companies")
 @Unique(["slug"])
 export class Company {
@@ -32,19 +32,27 @@ export class Company {
   @Column() name: string;
   @Column() slug: string;
   @Column({ default: true }) isActive: boolean;
+  @Column({ type: "varchar", default: "shared" }) botMode: string;
+  @Column({ type: "text", nullable: true }) description: string | null;
+  @Column({ type: "text", nullable: true }) botObjective: string | null;
+  @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
+  dataFields: string[];
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }
+
 @Entity("managers")
 export class Manager {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column() companyId: string;
   @Column() name: string;
   @Column() email: string;
+  @Column({ type: "varchar", nullable: true }) chatId: string | null;
   @Column({ default: true }) isActive: boolean;
   @Column({ default: 0 }) rrOrder: number;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("bot_connections")
 export class BotConnection {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -55,6 +63,7 @@ export class BotConnection {
   @Column() webhookSecret: string;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("conversations")
 export class Conversation {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -62,10 +71,11 @@ export class Conversation {
   @Column() botConnectionId: string;
   @Column() telegramUserId: string;
   @Column({ type: "varchar", nullable: true }) state: string | null;
-  @Column({ type: "jsonb", default: () => ({}) })
+  @Column({ type: "jsonb", default: () => "'{}'::jsonb" })
   context: Record<string, unknown>;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("leads")
 export class Lead {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -80,6 +90,7 @@ export class Lead {
   assignedManagerId: string | null;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("lead_assignments")
 export class LeadAssignment {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -88,6 +99,7 @@ export class LeadAssignment {
   @Column() managerId: string;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("plans")
 export class Plan {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -95,6 +107,7 @@ export class Plan {
   @Column() name: string;
   @Column() monthlyLeadLimit: number;
 }
+
 @Entity("subscriptions")
 export class Subscription {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -103,6 +116,7 @@ export class Subscription {
   @Column({ default: true }) isActive: boolean;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("usage_counters")
 export class UsageCounter {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -111,13 +125,14 @@ export class UsageCounter {
   @Column({ default: 0 }) leadsUsed: number;
   @Column({ default: 0 }) dialogsUsed: number;
 }
+
 @Entity("audit_logs")
 export class AuditLog {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column() companyId: string;
   @Column() actor: string;
   @Column() action: string;
-  @Column({ type: "jsonb", default: () => ({}) })
+  @Column({ type: "jsonb", default: () => "'{}'::jsonb" })
   payload: Record<string, unknown>;
   @CreateDateColumn() createdAt: Date;
 }

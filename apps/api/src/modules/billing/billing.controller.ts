@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { BillingService } from "./billing.service";
 import { JwtAuthGuard } from "../../common/jwt-auth.guard";
@@ -17,5 +17,11 @@ export class BillingController {
   })
   current(@Query("companyId") companyId: string) {
     return this.s.current(companyId);
+  }
+
+  @Patch("subscription")
+  @ApiOperation({ summary: "Сменить тариф компании" })
+  changePlan(@Body() body: { companyId: string; planCode: string }) {
+    return this.s.changePlan(body.companyId, body.planCode);
   }
 }

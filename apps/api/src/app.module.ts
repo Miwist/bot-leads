@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { entities } from "./database/entities";
@@ -10,11 +9,11 @@ import { BotsModule } from "./modules/bots/bots.module";
 import { LeadsModule } from "./modules/leads/leads.module";
 import { BillingModule } from "./modules/billing/billing.module";
 import { TelegramModule } from "./modules/telegram/telegram.module";
+import { ConversationsModule } from "./modules/conversations/conversations.module";
 import { HealthController } from "./modules/health/health.controller";
 
 @Module({
   imports: [
-    EventEmitterModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -33,6 +32,7 @@ import { HealthController } from "./modules/health/health.controller";
     LeadsModule,
     BillingModule,
     TelegramModule,
+    ConversationsModule,
   ],
   controllers: [HealthController],
 })

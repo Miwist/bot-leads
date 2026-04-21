@@ -32,6 +32,12 @@ export class LeadsController {
     return this.s.list(companyId, status as LeadStatus | undefined);
   }
 
+  @Get("stats/:companyId")
+  @ApiOperation({ summary: "Сводка по лидам компании" })
+  stats(@Param("companyId") companyId: string) {
+    return this.s.stats(companyId);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Лид по id" })
   get(@Param("id") id: string) {

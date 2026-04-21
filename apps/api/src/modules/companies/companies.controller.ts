@@ -30,6 +30,12 @@ export class CompaniesController {
     return this.s.list();
   }
 
+  @Get(":id")
+  @ApiOperation({ summary: "Получить компанию" })
+  get(@Param("id") id: string) {
+    return this.s.get(id);
+  }
+
   @Patch(":id")
   @ApiOperation({ summary: "Обновить компанию" })
   update(@Param("id") id: string, @Body() b: Record<string, unknown>) {
