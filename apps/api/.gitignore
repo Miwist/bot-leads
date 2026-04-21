@@ -1,0 +1,13 @@
+# Nest build
+dist/
+
+# Local env (commit .env.example only)
+.env
+.env.*
+!.env.example
+
+# Тесты
+coverage/
+
+# Логи
+*.log
