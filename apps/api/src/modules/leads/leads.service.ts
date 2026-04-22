@@ -1,8 +1,17 @@
-import { Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Lead, LeadAssignment, LeadStatus } from "../../database/entities";
+import { Company, Lead, LeadAssignment } from "../../database/entities";
 import { Repository } from "typeorm";
 import { ManagersService } from "../managers/managers.service";
+import {
+  normalizeLeadStatuses,
+  SYSTEM_STATUS_IN_PROGRESS,
+  SYSTEM_STATUS_NEW,
+} from "../../common/lead-statuses";
 
 @Injectable()
 export class LeadsService {
@@ -10,10 +19,11 @@ export class LeadsService {
     @InjectRepository(Lead) private leads: Repository<Lead>,
     @InjectRepository(LeadAssignment)
     private assignRepo: Repository<LeadAssignment>,
+    @InjectRepository(Company) private companies: Repository<Company>,
     private managers: ManagersService,
   ) {}
 
-  list(companyId: string, status?: LeadStatus) {
+  list(companyId: string, status?: string) {
     return this.leads.find({
       where: { companyId, ...(status ? { status } : {}) },
       order: { createdAt: "DESC" },
@@ -21,12 +31,16 @@ export class LeadsService {
   }
 
   async stats(companyId: string) {
-    const rows = await this.leads.find({ where: { companyId }, order: { createdAt: "DESC" } });
+    const rows = await this.leads.find({
+      where: { companyId },
+      order: { createdAt: "DESC" },
+    });
     return {
       total: rows.length,
-      newCount: rows.filter((x) => x.status === LeadStatus.NEW).length,
-      assignedCount: rows.filter((x) => x.status === LeadStatus.ASSIGNED).length,
-      qualifiedCount: rows.filter((x) => x.status === LeadStatus.QUALIFIED).length,
+      newCount: rows.filter((x) => x.status === SYSTEM_STATUS_NEW).length,
+      assignedCount: rows.filter((x) => x.status === SYSTEM_STATUS_IN_PROGRESS)
+        .length,
+      qualifiedCount: rows.filter((x) => x.status === "qualified").length,
       latest: rows.slice(0, 5),
     };
   }
@@ -35,12 +49,73 @@ export class LeadsService {
     return this.leads.findOne({ where: { id } });
   }
 
-  updateStatus(id: string, status: LeadStatus) {
-    return this.leads.update({ id }, { status });
+  getByConversationId(conversationId: string) {
+    return this.leads.findOne({ where: { conversationId } });
+  }
+
+  private async allowedStatusCodes(companyId: string) {
+    const c = await this.companies.findOne({ where: { id: companyId } });
+    return normalizeLeadStatuses(c?.leadStatuses).map((x) => x.code);
+  }
+
+  async updateStatus(id: string, status: string) {
+    const lead = await this.leads.findOne({ where: { id } });
+    if (!lead) throw new NotFoundException();
+    const normalized = status.trim().toLowerCase();
+    const allowed = await this.allowedStatusCodes(lead.companyId);
+    if (!allowed.includes(normalized)) {
+      throw new BadRequestException("Недопустимый статус для этой компании");
+    }
+    await this.leads.update({ id }, { status: normalized });
+    return this.get(id);
+  }
+
+  async update(
+    id: string,
+    data: Partial<
+      Lead & {
+        details: Record<string, unknown>;
+      }
+    >,
+  ) {
+    const lead = await this.leads.findOne({ where: { id } });
+    if (!lead) throw new NotFoundException();
+    const patch: Partial<Lead> = {};
+    if (typeof data.fullName === "string") patch.fullName = data.fullName.trim();
+    if (typeof data.phone === "string") patch.phone = data.phone.trim();
+    if (typeof data.need === "string") patch.need = data.need.trim();
+    if (typeof data.email === "string" || data.email === null) patch.email = data.email;
+    if (typeof data.source === "string" || data.source === null) patch.source = data.source;
+    if (typeof data.budget === "string" || data.budget === null) patch.budget = data.budget;
+    if (typeof data.comment === "string" || data.comment === null) {
+      patch.comment = data.comment;
+    }
+    if (data.details && typeof data.details === "object") {
+      patch.details = data.details;
+    }
+    if (typeof data.status === "string" && data.status.trim()) {
+      const normalized = data.status.trim().toLowerCase();
+      const allowed = await this.allowedStatusCodes(lead.companyId);
+      if (!allowed.includes(normalized)) {
+        throw new BadRequestException("Недопустимый статус для этой компании");
+      }
+      patch.status = normalized;
+    }
+    Object.assign(lead, patch);
+    const saved = await this.leads.save(lead);
+    return this.get(saved.id);
   }
 
   async createLead(payload: Partial<Lead>) {
-    const lead = await this.leads.save(this.leads.create(payload));
+    const status =
+      payload.status && String(payload.status).trim()
+        ? String(payload.status).trim().toLowerCase()
+        : SYSTEM_STATUS_NEW;
+    const allowed = await this.allowedStatusCodes(payload.companyId!);
+    const safeStatus = allowed.includes(status) ? status : SYSTEM_STATUS_NEW;
+    const lead = await this.leads.save(
+      this.leads.create({ ...payload, status: safeStatus }),
+    );
     await this.assignNow(lead.id);
     return this.get(lead.id);
   }
@@ -52,7 +127,10 @@ export class LeadsService {
     if (!manager) return lead;
     await this.leads.update(
       { id: leadId },
-      { assignedManagerId: manager.id, status: LeadStatus.ASSIGNED },
+      {
+        assignedManagerId: manager.id,
+        status: SYSTEM_STATUS_IN_PROGRESS,
+      },
     );
     await this.assignRepo.save(
       this.assignRepo.create({

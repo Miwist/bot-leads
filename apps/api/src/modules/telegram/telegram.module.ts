@@ -8,7 +8,7 @@ import { BotsModule } from "../bots/bots.module";
 import { LeadsModule } from "../leads/leads.module";
 import { BillingModule } from "../billing/billing.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { Conversation } from "../../database/entities";
+import { Company, Conversation, ConversationMessage } from "../../database/entities";
 import { AiModule } from "../ai/ai.module";
 @Module({
   imports: [
@@ -16,7 +16,7 @@ import { AiModule } from "../ai/ai.module";
     BotsModule,
     LeadsModule,
     BillingModule,
-    TypeOrmModule.forFeature([Conversation]),
+    TypeOrmModule.forFeature([Conversation, Company, ConversationMessage]),
   ],
   controllers: [TelegramController],
   providers: [

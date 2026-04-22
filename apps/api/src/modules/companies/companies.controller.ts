@@ -1,10 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
@@ -20,25 +23,50 @@ export class CompaniesController {
 
   @Post()
   @ApiOperation({ summary: "Создать компанию" })
-  create(@Body() b: Record<string, unknown>) {
-    return this.s.create(b);
+  create(
+    @Body() b: Record<string, unknown>,
+    @Req() req: { user: { sub: string; companyId?: string | null; role?: string } },
+  ) {
+    if (req.user.role === "manager") {
+      throw new ForbiddenException("Менеджер не может создавать компанию");
+    }
+    return this.s.create(req.user.sub, b);
   }
 
   @Get()
   @ApiOperation({ summary: "Список компаний текущего пользователя" })
-  list() {
-    return this.s.list();
+  list(
+    @Req() req: { user: { sub: string; companyId?: string | null; role?: string } },
+  ) {
+    return this.s.list(req.user);
   }
 
   @Get(":id")
   @ApiOperation({ summary: "Получить компанию" })
-  get(@Param("id") id: string) {
-    return this.s.get(id);
+  get(
+    @Param("id") id: string,
+    @Req() req: { user: { companyId?: string | null; role?: string } },
+  ) {
+    return this.s.get(id, req.user);
   }
 
   @Patch(":id")
   @ApiOperation({ summary: "Обновить компанию" })
-  update(@Param("id") id: string, @Body() b: Record<string, unknown>) {
-    return this.s.update(id, b);
+  update(
+    @Param("id") id: string,
+    @Body() b: Record<string, unknown>,
+    @Req() req: { user: { companyId?: string | null; role?: string } },
+  ) {
+    return this.s.update(id, b, req.user);
+  }
+
+  @Delete(":id/bot-materials/:materialId")
+  @ApiOperation({ summary: "Удалить материал бота (включая файл в S3)" })
+  removeBotMaterial(
+    @Param("id") id: string,
+    @Param("materialId") materialId: string,
+    @Req() req: { user: { companyId?: string | null; role?: string } },
+  ) {
+    return this.s.removeBotMaterial(id, materialId, req.user);
   }
 }

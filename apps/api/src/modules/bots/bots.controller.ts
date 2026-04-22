@@ -40,6 +40,15 @@ export class BotsController {
     return this.s.list(companyId);
   }
 
+  @Get("start-link")
+  @ApiOperation({
+    summary: "Стартовая ссылка для клиентов",
+    description: "Query-параметр `companyId`",
+  })
+  startLink(@Query("companyId") companyId: string) {
+    return this.s.getStartLink(companyId);
+  }
+
   @Patch(":id/deactivate")
   @ApiOperation({ summary: "Деактивировать бота" })
   deactivate(@Param("id") id: string) {

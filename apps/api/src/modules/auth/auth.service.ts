@@ -11,8 +11,9 @@ export class AuthService {
     private jwt: JwtService,
   ) {}
   async register(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
     const u = this.users.create({
-      email,
+      email: normalizedEmail,
       passwordHash: await bcrypt.hash(password, 10),
     });
     await this.users.save(u);
@@ -21,11 +22,13 @@ export class AuthService {
         sub: u.id,
         email: u.email,
         companyId: u.companyId,
+        role: u.role,
       }),
     };
   }
   async login(email: string, password: string) {
-    const u = await this.users.findOne({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+    const u = await this.users.findOne({ where: { email: normalizedEmail } });
     if (!u || !(await bcrypt.compare(password, u.passwordHash)))
       throw new UnauthorizedException();
     return {
@@ -33,6 +36,7 @@ export class AuthService {
         sub: u.id,
         email: u.email,
         companyId: u.companyId,
+        role: u.role,
       }),
     };
   }
