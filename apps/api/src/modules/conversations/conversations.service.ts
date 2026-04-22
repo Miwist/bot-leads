@@ -36,7 +36,10 @@ export class ConversationsService {
     }
   }
 
-  async list(user: { role?: string; companyId?: string | null }, companyId: string) {
+  async list(
+    user: { role?: string; companyId?: string | null },
+    companyId: string,
+  ) {
     this.assertCompanyAccess(user, companyId);
     const allConversations = await this.convRepo.find({
       where: { companyId },
@@ -59,7 +62,9 @@ export class ConversationsService {
       : [];
 
     return conversations.map((conversation) => {
-      const lead = leads.find((item) => item.conversationId === conversation.id);
+      const lead = leads.find(
+        (item) => item.conversationId === conversation.id,
+      );
       const context = (conversation.context || {}) as Record<string, unknown>;
       const timeline = messages
         .filter((m) => m.conversationId === conversation.id)
@@ -83,7 +88,9 @@ export class ConversationsService {
         createdAt: conversation.createdAt,
         state: conversation.state,
         lead,
-        preview: String(last?.text || lead?.need || context.name || "Новый диалог"),
+        preview: String(
+          last?.text || lead?.need || context.name || "Новый диалог",
+        ),
         timeline: safeTimeline,
       };
     });

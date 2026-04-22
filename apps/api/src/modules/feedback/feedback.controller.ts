@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../../common/jwt-auth.guard";
 import { FeedbackService } from "./feedback.service";
@@ -32,7 +40,8 @@ export class FeedbackController {
   @Post()
   @ApiOperation({ summary: "Отправить сообщение от компании" })
   create(
-    @Req() req: { user: { sub?: string; role?: string; companyId?: string | null } },
+    @Req()
+    req: { user: { sub?: string; role?: string; companyId?: string | null } },
     @Body()
     body: {
       companyId: string;

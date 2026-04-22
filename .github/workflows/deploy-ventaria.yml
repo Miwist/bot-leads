@@ -1,0 +1,96 @@
+# CD: статика в ${DEPLOY_HOME}/public, API в Docker из ${DEPLOY_HOME}/api + docker-compose.yml.
+# На сервере .env в ${DEPLOY_HOME} не затирается (rsync только в public/ и api/).
+#
+# Nginx (пример): root → ${DEPLOY_HOME}/public; location /api → proxy_pass http://127.0.0.1:${API_PUBLISH_PORT};
+#   порт должен совпадать с API_PUBLISH_PORT в серверном .env (см. deploy/ventaria/.env.example).
+#
+# Secrets (рекомендуемые имена):
+#   SSH_PRIVATE_KEY (или SERVER_SSH_KEY), SSH_HOST (или SERVER_IP), SSH_USER
+# Опционально: SERVER_DEPLOY_HOME — корень деплоя (иначе vars.DEPLOY_PATH или /var/www/ai.ventaria.ru)
+# Variables: DEPLOY_PATH (как DEPLOY_HOME, если нет SERVER_DEPLOY_HOME), NEXT_PUBLIC_API_URL
+
+name: Deploy Ventaria AI
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ventaria-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      # Вшивается в статический фронт на шаге build web
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://ai.ventaria.ru' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        run: npm run build -w api
+
+      - name: Build web (static export)
+        run: npm run build -w web
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY || secrets.SERVER_SSH_KEY }}
+
+      - name: Deploy public + api + compose
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST || secrets.SERVER_IP }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SERVER_DEPLOY_HOME: ${{ secrets.SERVER_DEPLOY_HOME }}
+          DEPLOY_PATH_VAR: ${{ vars.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Задайте secret SSH_HOST или SERVER_IP}"
+          : "${SSH_USER:?Задайте secret SSH_USER}"
+
+          DEPLOY_HOME="${SERVER_DEPLOY_HOME:-}"
+          if [ -z "${DEPLOY_HOME}" ]; then
+            DEPLOY_HOME="${DEPLOY_PATH_VAR:-/var/www/ai.ventaria.ru}"
+          fi
+          WEB_ROOT="${DEPLOY_HOME}/public"
+          API_DIR="${DEPLOY_HOME}/api"
+          REMOTE="${SSH_USER}@${SSH_HOST}"
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
+            "mkdir -p '${WEB_ROOT}' '${API_DIR}'"
+
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=accept-new" \
+            apps/web/out/ "${REMOTE}:${WEB_ROOT}/"
+
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=accept-new" \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .git \
+            --exclude coverage \
+            --exclude .env \
+            apps/api/ "${REMOTE}:${API_DIR}/"
+
+          scp -o StrictHostKeyChecking=accept-new \
+            deploy/ventaria/docker-compose.yml \
+            "${REMOTE}:${DEPLOY_HOME}/docker-compose.yml"
+
+          ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
+            "cd '${DEPLOY_HOME}' && (docker compose pull postgres 2>/dev/null || true) && docker compose build api && docker compose up -d --remove-orphans"

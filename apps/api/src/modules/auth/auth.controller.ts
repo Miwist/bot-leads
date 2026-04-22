@@ -1,8 +1,16 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "../../common/jwt-auth.guard";
-import { AuthCredentialsDto } from "./auth.dto";
+import { AuthCredentialsDto, UpdateProfileDto } from "./auth.dto";
 
 @ApiTags("Авторизация")
 @Controller("auth")
@@ -24,8 +32,19 @@ export class AuthController {
   @Get("me")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth("JWT")
-  @ApiOperation({ summary: "Текущий пользователь по JWT" })
-  me(@Req() req: { user: unknown }) {
-    return req.user;
+  @ApiOperation({ summary: "Текущий пользователь (профиль из БД)" })
+  me(@Req() req: { user: { sub: string } }) {
+    return this.auth.me(req.user.sub);
+  }
+
+  @Patch("me")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("JWT")
+  @ApiOperation({ summary: "Обновить профиль (например Telegram ID)" })
+  patchMe(
+    @Req() req: { user: { sub: string } },
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.auth.updateProfile(req.user.sub, dto);
   }
 }

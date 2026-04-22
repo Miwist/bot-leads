@@ -1,5 +1,6 @@
 FROM node:20-alpine
-RUN apk add --no-cache wget
+# ffmpeg нужен для распознавания голосовых (OGG→WAV) в Telegram, как в Dockerfile
+RUN apk add --no-cache wget ffmpeg
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci

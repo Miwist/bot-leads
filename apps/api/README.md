@@ -15,9 +15,9 @@
 
 ## Telegram: polling vs webhook
 
-| Переменная | Значение | Назначение |
-|------------|----------|------------|
-| `TELEGRAM_UPDATES_MODE` | `polling` или `webhook` | Как получать апдейты от Telegram |
+| Переменная                  | Значение                  | Назначение                                                      |
+| --------------------------- | ------------------------- | --------------------------------------------------------------- |
+| `TELEGRAM_UPDATES_MODE`     | `polling` или `webhook`   | Как получать апдейты от Telegram                                |
 | `TELEGRAM_WEBHOOK_BASE_URL` | HTTPS URL без `/` в конце | Только для `webhook`: `setWebhook` на `{BASE}/telegram/webhook` |
 
 - **`webhook` (по умолчанию):** при старте API активные боты переподписываются на webhook; при добавлении бота в кабинете — сразу `setWebhook`; при деактивации — `deleteWebhook`. Нужен публичный HTTPS.
@@ -42,6 +42,8 @@ npm run migration:run
 ```bash
 npm run dev
 ```
+
+Для **голосовых в Telegram** (конвертация OGG→WAV) в `PATH` должен быть **`ffmpeg`** (на macOS: `brew install ffmpeg`). В Docker dev-образе `ffmpeg` уже в `Dockerfile.dev`.
 
 ## Start prod
 

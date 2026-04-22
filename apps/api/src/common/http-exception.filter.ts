@@ -21,8 +21,13 @@ export class HttpExceptionLoggingFilter implements ExceptionFilter {
     const status = isHttp
       ? exception.getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
-    const message = isHttp
-      ? exception.message
+    const logMessage = isHttp
+      ? (() => {
+          const body = exception.getResponse();
+          return typeof body === "object" && body !== null
+            ? JSON.stringify(body)
+            : String(body ?? exception.message);
+        })()
       : exception instanceof Error
         ? exception.message
         : "Unexpected error";
@@ -32,13 +37,29 @@ export class HttpExceptionLoggingFilter implements ExceptionFilter {
       method: req.method,
       path: req.originalUrl || req.url,
       status,
-      message,
+      message: logMessage,
     });
 
     if (res.headersSent) return;
+    if (isHttp) {
+      const body = exception.getResponse();
+      if (typeof body === "object" && body !== null) {
+        res.status(status).json({
+          ...(body as Record<string, unknown>),
+          requestId: req.requestId || "",
+        });
+        return;
+      }
+      res.status(status).json({
+        statusCode: status,
+        message: body,
+        requestId: req.requestId || "",
+      });
+      return;
+    }
     res.status(status).json({
       statusCode: status,
-      message,
+      message: logMessage,
       requestId: req.requestId || "",
     });
   }

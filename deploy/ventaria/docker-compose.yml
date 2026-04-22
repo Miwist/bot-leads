@@ -1,0 +1,59 @@
+# Продакшен: API + Postgres. Статика — в sibling-каталоге public/ (см. workflow deploy-ventaria).
+# На сервере один раз создайте .env рядом с этим файлом (${DEPLOY_HOME}/.env) — деплой его не затирает.
+#
+# DATABASE_URL: postgres://USER:PASS@postgres:5432/DB
+#
+# Порты: см. `.env.example` — API_PORT (внутри контейнера), API_PUBLISH_PORT (хост),
+# API_BIND (127.0.0.1 по умолчанию). Подстановка при `docker compose up` из этого каталога.
+
+name: ai-ventaria
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_seller}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [appnet]
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - target: ${API_PORT:-3001}
+        published: ${API_PUBLISH_PORT:-3001}
+        host_ip: ${API_BIND:-127.0.0.1}
+        protocol: tcp
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'wget -qO- "http://127.0.0.1:$${API_PORT:-3001}/health" || exit 1',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 50s
+    networks: [appnet]
+
+networks:
+  appnet:
+
+volumes:
+  postgres_data:

@@ -45,6 +45,26 @@ export class CompaniesService {
     };
   }
 
+  async resolveCompanyId(user: {
+    sub?: string;
+    companyId?: string | null;
+    role?: string;
+  }): Promise<string | null> {
+    if (user.role === "admin") {
+      return null;
+    }
+    if (user.sub) {
+      const row = await this.users.findOne({
+        where: { id: user.sub },
+        select: { companyId: true },
+      });
+      if (row?.companyId) {
+        return row.companyId;
+      }
+    }
+    return user.companyId ?? null;
+  }
+
   private async normalizeBotMaterials(
     companyId: string,
     rows: unknown,
@@ -54,9 +74,12 @@ export class CompaniesService {
     for (const row of rows) {
       if (!row || typeof row !== "object") continue;
       const item = row as Record<string, unknown>;
-      const id = String(item.id || "").trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const id =
+        String(item.id || "").trim() ||
+        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const title = String(item.title || "").trim() || "Материал";
-      const fileName = String(item.fileName || item.name || "").trim() || "file";
+      const fileName =
+        String(item.fileName || item.name || "").trim() || "file";
       const kind = String(item.kind || "auto").trim() || "auto";
       const groupIdRaw = String(item.groupId || "").trim();
       const groupId = groupIdRaw || null;
@@ -75,6 +98,17 @@ export class CompaniesService {
           key = uploaded.key;
           mime = uploaded.mime;
         }
+      }
+      // В БД мог остаться data: URL без повторной отправки `data` — Telegram так не принимает
+      if (url.startsWith("data:")) {
+        const uploaded = await this.storage.uploadDataUrl(url, {
+          prefix: `companies/${companyId}/materials`,
+          fileName,
+        });
+        if (!uploaded) continue;
+        url = uploaded.url;
+        key = uploaded.key;
+        mime = uploaded.mime;
       }
       if (!url) continue;
       out.push({
@@ -117,22 +151,29 @@ export class CompaniesService {
     return this.withLeadStatuses(company);
   }
 
-  list(user: { companyId?: string | null; role?: string }) {
+  async list(user: { sub?: string; companyId?: string | null; role?: string }) {
     if (user.role === "admin") {
       return this.repo.find({ order: { createdAt: "DESC" } });
     }
-    if (!user.companyId) {
+    const companyId = await this.resolveCompanyId(user);
+    if (!companyId) {
       return [];
     }
     return this.repo.find({
-      where: { id: user.companyId },
+      where: { id: companyId },
       order: { createdAt: "DESC" },
     });
   }
 
-  async get(id: string, user: { companyId?: string | null; role?: string }) {
-    if (user.role !== "admin" && user.companyId && user.companyId !== id) {
-      throw new ForbiddenException("Нет доступа к этой компании");
+  async get(
+    id: string,
+    user: { sub?: string; companyId?: string | null; role?: string },
+  ) {
+    if (user.role !== "admin") {
+      const cid = await this.resolveCompanyId(user);
+      if (!cid || cid !== id) {
+        throw new ForbiddenException("Нет доступа к этой компании");
+      }
     }
     const row = await this.repo.findOne({ where: { id } });
     return this.withLeadStatuses(row);
@@ -141,10 +182,13 @@ export class CompaniesService {
   async update(
     id: string,
     data: Partial<Company>,
-    user: { companyId?: string | null; role?: string },
+    user: { sub?: string; companyId?: string | null; role?: string },
   ) {
-    if (user.role !== "admin" && user.companyId && user.companyId !== id) {
-      throw new ForbiddenException("Нет доступа к этой компании");
+    if (user.role !== "admin") {
+      const cid = await this.resolveCompanyId(user);
+      if (!cid || cid !== id) {
+        throw new ForbiddenException("Нет доступа к этой компании");
+      }
     }
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new NotFoundException();
@@ -170,10 +214,13 @@ export class CompaniesService {
   async removeBotMaterial(
     id: string,
     materialId: string,
-    user: { companyId?: string | null; role?: string },
+    user: { sub?: string; companyId?: string | null; role?: string },
   ) {
-    if (user.role !== "admin" && user.companyId && user.companyId !== id) {
-      throw new ForbiddenException("Нет доступа к этой компании");
+    if (user.role !== "admin") {
+      const cid = await this.resolveCompanyId(user);
+      if (!cid || cid !== id) {
+        throw new ForbiddenException("Нет доступа к этой компании");
+      }
     }
     const row = await this.repo.findOne({ where: { id } });
     if (!row) throw new NotFoundException();
