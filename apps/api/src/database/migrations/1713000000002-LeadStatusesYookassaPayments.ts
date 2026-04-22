@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class LeadStatusesYookassaPayments1713000000002
-  implements MigrationInterface
-{
+export class LeadStatusesYookassaPayments1713000000002 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "leadStatuses" jsonb NOT NULL DEFAULT '[]'::jsonb`,
@@ -27,9 +25,7 @@ export class LeadStatusesYookassaPayments1713000000002
       `ALTER TABLE "leads" ALTER COLUMN "status" SET DEFAULT 'new'`,
     );
 
-    await queryRunner.query(
-      `DROP TYPE IF EXISTS "public"."leads_status_enum"`,
-    );
+    await queryRunner.query(`DROP TYPE IF EXISTS "public"."leads_status_enum"`);
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "billing_payments" (

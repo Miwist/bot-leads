@@ -36,7 +36,8 @@ export class BillingService {
     @InjectRepository(Plan) private plans: Repository<Plan>,
     @InjectRepository(Subscription) private subs: Repository<Subscription>,
     @InjectRepository(UsageCounter) private usage: Repository<UsageCounter>,
-    @InjectRepository(BillingPayment) private payments: Repository<BillingPayment>,
+    @InjectRepository(BillingPayment)
+    private payments: Repository<BillingPayment>,
     private readonly yookassa: YooKassaService,
   ) {
     this.yookassa.logMissingConfig();
@@ -46,7 +47,9 @@ export class BillingService {
     const company = await this.companies.findOne({ where: { id: companyId } });
     const sub =
       (await this.subs.findOne({ where: { companyId, isActive: true } })) ||
-      (await this.subs.save(this.subs.create({ companyId, planCode: "starter" })));
+      (await this.subs.save(
+        this.subs.create({ companyId, planCode: "starter" }),
+      ));
     const plan = await this.plans.findOne({ where: { code: sub.planCode } });
     const plans = await this.plans.find({ order: { monthlyLeadLimit: "ASC" } });
     const monthKey = new Date().toISOString().slice(0, 7);
@@ -72,12 +75,30 @@ export class BillingService {
       },
       discounts: this.discountPercentByMonths,
       yookassaReady: this.yookassa.isConfigured(),
+      multimodalTelegram: this.planSupportsMultimodal(sub.planCode),
     };
+  }
+
+  /** Голос, фото и PDF в Telegram — тарифы Business / Pro (не Basic). */
+  planSupportsMultimodal(planCode: string): boolean {
+    const c = String(planCode || "starter").toLowerCase();
+    return c === "growth" || c === "pro";
+  }
+
+  async supportsMultimodalTelegram(companyId: string): Promise<boolean> {
+    if (!companyId || companyId === "__shared__") return false;
+    const sub =
+      (await this.subs.findOne({ where: { companyId, isActive: true } })) ||
+      (await this.subs.findOne({ where: { companyId } }));
+    const code = sub?.planCode || "starter";
+    return this.planSupportsMultimodal(code);
   }
 
   /** Смена тарифа только после успешной оплаты (webhook ЮKassa). */
   async changePlan(companyId: string, planCode: string) {
-    const active = await this.subs.findOne({ where: { companyId, isActive: true } });
+    const active = await this.subs.findOne({
+      where: { companyId, isActive: true },
+    });
     if (active) {
       await this.subs.update({ id: active.id }, { planCode });
     } else {

@@ -1,5 +1,5 @@
 FROM node:20-alpine
-RUN apk add --no-cache wget
+RUN apk add --no-cache wget ffmpeg
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci && chmod -R +x node_modules/.bin

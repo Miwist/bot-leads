@@ -49,7 +49,11 @@ export class FeedbackService {
       take: 500,
     });
     const seen = new Set<string>();
-    const out: Array<{ topic: string; lastMessage: string; lastMessageAt: Date | null }> = [];
+    const out: Array<{
+      topic: string;
+      lastMessage: string;
+      lastMessageAt: Date | null;
+    }> = [];
     for (const row of rows) {
       const topic = (row.topic || "Общий вопрос").trim() || "Общий вопрос";
       if (seen.has(topic)) continue;

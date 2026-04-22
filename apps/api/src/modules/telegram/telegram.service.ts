@@ -1,6 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import axios from "axios";
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { writeFile, unlink, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { ILike, Repository } from "typeorm";
 import {
   BotConnection,
@@ -14,6 +20,9 @@ import { LeadsService } from "../leads/leads.service";
 import { BillingService } from "../billing/billing.service";
 import { TimewebAiService } from "../ai/timeweb-ai.service";
 import { logError, logInfo } from "../../common/logging";
+
+const execFileAsync = promisify(execFile);
+const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
 
 @Injectable()
 export class TelegramService {
@@ -83,7 +92,10 @@ export class TelegramService {
   private sanitizeUserText(input: string): string {
     const txt = String(input || "").trim();
     return txt
-      .replace(/(?:token|secret|парол\w*|ключ\w*|jwt|id компании)\s*[:=].*/gi, "[скрыто]")
+      .replace(
+        /(?:token|secret|парол\w*|ключ\w*|jwt|id компании)\s*[:=].*/gi,
+        "[скрыто]",
+      )
       .slice(0, 2000);
   }
 
@@ -92,25 +104,28 @@ export class TelegramService {
     mime?: string;
     fileName?: string;
   }) {
-    if (item.kind && item.kind !== "auto" && item.kind !== "group") return item.kind;
+    if (item.kind && item.kind !== "auto" && item.kind !== "group")
+      return item.kind;
     const mime = String(item.mime || "").toLowerCase();
     const fileName = String(item.fileName || "").toLowerCase();
     if (mime.startsWith("image/")) return "photo";
     if (mime.startsWith("video/")) return "video";
-    if (mime.startsWith("audio/ogg") || fileName.endsWith(".ogg")) return "voice";
+    if (mime.startsWith("audio/ogg") || fileName.endsWith(".ogg"))
+      return "voice";
     if (mime.startsWith("audio/")) return "document";
     return "document";
   }
 
-  private resolveMaterialUrl(item: {
-    url?: string;
-    key?: string;
-  }) {
+  private resolveMaterialUrl(item: { url?: string; key?: string }) {
     const rawUrl = String(item.url || "").trim();
     if (!rawUrl) return "";
-    const base = String(process.env.S3_PUBLIC_BASE_URL || "").trim().replace(/\/+$/g, "");
+    const base = String(process.env.S3_PUBLIC_BASE_URL || "")
+      .trim()
+      .replace(/\/+$/g, "");
     const bucket = String(process.env.S3_BUCKET || "").trim();
-    const key = String(item.key || "").trim().replace(/^\/+/, "");
+    const key = String(item.key || "")
+      .trim()
+      .replace(/^\/+/, "");
     if (!base || !bucket || !key) return rawUrl;
     const expectedPrefix = `${base}/${bucket}/`;
     if (rawUrl.startsWith(expectedPrefix)) return rawUrl;
@@ -208,18 +223,28 @@ export class TelegramService {
     }
   }
 
+  private companyChoiceButtonLabel(c: Company) {
+    const name = String(c.name || "").trim() || "Компания";
+    const hint = String(c.clientDisambiguation || "").trim();
+    const combined = hint ? `${name} — ${hint}` : name;
+    const max = 64;
+    if (combined.length <= max) return combined;
+    return `${combined.slice(0, Math.max(1, max - 1))}…`;
+  }
+
   private buildCompanyKeyboard(
     query: string,
     items: Company[],
     page: number,
     hasNext: boolean,
   ) {
-    const inline_keyboard: Array<Array<{ text: string; callback_data: string }>> =
-      [];
+    const inline_keyboard: Array<
+      Array<{ text: string; callback_data: string }>
+    > = [];
     for (const c of items) {
       inline_keyboard.push([
         {
-          text: c.name,
+          text: this.companyChoiceButtonLabel(c),
           callback_data: `cmp:${c.id}`,
         },
       ]);
@@ -249,11 +274,23 @@ export class TelegramService {
   ) {
     const list = await this.searchCompanies(query, page);
     const hasNext = list.length === 5;
+    const lines = list.map((c, i) => {
+      const hint = String(c.clientDisambiguation || "").trim();
+      const mark = `${i + 1}. ${c.name}`;
+      return hint ? `${mark}\n   ↳ ${hint}` : mark;
+    });
     const text = list.length
-      ? "Выберите компанию из списка:"
+      ? [
+          "Выберите компанию кнопкой ниже.",
+          "Если названия похожи — ориентируйтесь по короткой подписи после «—».",
+          "",
+          ...lines,
+        ].join("\n")
       : "Компаний не найдено. Попробуйте другое название.";
     const markup = this.buildCompanyKeyboard(query, list, page, hasNext);
-    await this.sendChatMessage(bot, chatId, text, { inline_keyboard: markup.inline_keyboard });
+    await this.sendChatMessage(bot, chatId, text, {
+      inline_keyboard: markup.inline_keyboard,
+    });
   }
 
   private async askPhone(
@@ -264,7 +301,8 @@ export class TelegramService {
     await this.sendChatMessage(
       bot,
       chatId,
-      aiText ?? "Укажите телефон. Можно отправить контактом через кнопку ниже или написать вручную.",
+      aiText ??
+        "Укажите телефон. Можно отправить контактом через кнопку ниже или написать вручную.",
       {
         keyboard: [
           [{ text: "📱 Поделиться телефоном", request_contact: true }],
@@ -284,9 +322,12 @@ export class TelegramService {
   private async answerCallback(bot: BotConnection, callbackQueryId: string) {
     try {
       const token = this.encryption.decrypt(bot.tokenEncrypted);
-      await axios.post(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-        callback_query_id: callbackQueryId,
-      });
+      await axios.post(
+        `https://api.telegram.org/bot${token}/answerCallbackQuery`,
+        {
+          callback_query_id: callbackQueryId,
+        },
+      );
     } catch {}
   }
 
@@ -302,11 +343,11 @@ export class TelegramService {
 
   /** Обработка одного Update для известного подключения (webhook и polling). */
   async dispatchUpdate(bot: BotConnection, update: unknown) {
-    const msg = (update as { message?: Record<string, unknown> })?.message;
+    const userMsg = (update as { message?: Record<string, unknown> })?.message;
     const cb = (update as { callback_query?: Record<string, unknown> })
       ?.callback_query;
-    const fromRaw = (msg?.from || cb?.from) as { id?: number } | undefined;
-    const chatRaw = (msg?.chat ||
+    const fromRaw = (userMsg?.from || cb?.from) as { id?: number } | undefined;
+    const chatRaw = (userMsg?.chat ||
       (cb?.message as { chat?: { id?: number } } | undefined)?.chat) as
       | { id?: number }
       | undefined;
@@ -323,55 +364,10 @@ export class TelegramService {
       chatId,
     });
 
-    const text =
-      typeof msg?.text === "string" ? msg.text.trim() : "";
     const contactPhone =
-      (msg?.contact as { phone_number?: string } | undefined)?.phone_number ||
-      "";
-    const callbackData =
-      typeof cb?.data === "string" ? cb.data : "";
-    const yesAnswer = /^(да|ага|угу|ок|окей|конечно|покажи|давай)$/i.test(text);
-    const noAnswer = /^(нет|не надо|не нужно|потом|неа)$/i.test(text);
-
-    const aiReply = async (state: string, ctx: Record<string, unknown>) => {
-      if (!this.timewebAi.isEnabled()) return null;
-      const targetCompanyId = this.isSharedBot(bot)
-        ? String((ctx.targetCompanyId as string) || "")
-        : bot.companyId;
-      const profile = targetCompanyId
-        ? await this.companies.findOne({ where: { id: targetCompanyId } })
-        : null;
-      return this.timewebAi.salesAssistantReply({
-        state,
-        context: ctx,
-        userText:
-          this.sanitizeUserText(text) ||
-          (contactPhone ? `[contact:${contactPhone}]` : ""),
-        isStart: text.startsWith("/start"),
-        companyProfile: {
-          companyName: profile?.name,
-          description: profile?.description,
-          botObjective: profile?.botObjective,
-        },
-      });
-    };
-
-    const saveIncoming = async (conversation: Conversation) => {
-      const pieces: Array<{ role: string; text: string }> = [];
-      if (text && !text.startsWith("/start")) pieces.push({ role: "user", text });
-      if (contactPhone) pieces.push({ role: "user", text: `Контакт: ${contactPhone}` });
-      for (const part of pieces) {
-        await this.messages.save(
-          this.messages.create({
-            conversationId: conversation.id,
-            companyId: conversation.companyId,
-            role: part.role,
-            text: part.text,
-            attachments: [],
-          }),
-        );
-      }
-    };
+      (userMsg?.contact as { phone_number?: string } | undefined)
+        ?.phone_number || "";
+    const callbackData = typeof cb?.data === "string" ? cb.data : "";
 
     let c = await this.conv.findOne({
       where: { botConnectionId: bot.id, telegramUserId: String(fromId) },
@@ -403,6 +399,73 @@ export class TelegramService {
           attachments: [],
         }),
       );
+    };
+
+    const rawText =
+      typeof userMsg?.text === "string" ? userMsg.text.trim() : "";
+    const caption =
+      typeof userMsg?.caption === "string" ? userMsg.caption.trim() : "";
+    const userTextResolved = await this.resolveTelegramMultimodalUserText(
+      bot,
+      (userMsg || {}) as Record<string, unknown>,
+      rawText,
+      caption,
+      c,
+      ctx,
+      send,
+    );
+    if (userTextResolved === null) return;
+    const userTextForFlow = userTextResolved;
+
+    const yesAnswer = /^(да|ага|угу|ок|окей|конечно|покажи|давай)$/i.test(
+      userTextForFlow,
+    );
+    const noAnswer = /^(нет|не надо|не нужно|потом|неа)$/i.test(
+      userTextForFlow,
+    );
+
+    const aiReply = async (state: string, ctxArg: Record<string, unknown>) => {
+      if (!this.timewebAi.isEnabled()) return null;
+      const targetCompanyId = this.isSharedBot(bot)
+        ? String((ctxArg.targetCompanyId as string) || "")
+        : bot.companyId;
+      const profile = targetCompanyId
+        ? await this.companies.findOne({ where: { id: targetCompanyId } })
+        : null;
+      return this.timewebAi.salesAssistantReply({
+        state,
+        context: ctxArg,
+        userText:
+          this.sanitizeUserText(userTextForFlow) ||
+          (contactPhone ? `[contact:${contactPhone}]` : ""),
+        isStart: rawText.startsWith("/start"),
+        companyProfile: {
+          companyName: profile?.name,
+          description: profile?.description,
+          botObjective: profile?.botObjective,
+          communicationTone: profile?.communicationTone,
+          assistantInstruction: profile?.assistantInstruction,
+        },
+      });
+    };
+
+    const saveIncoming = async (conversation: Conversation) => {
+      const pieces: Array<{ role: string; text: string }> = [];
+      if (userTextForFlow && !rawText.startsWith("/start"))
+        pieces.push({ role: "user", text: userTextForFlow });
+      if (contactPhone)
+        pieces.push({ role: "user", text: `Контакт: ${contactPhone}` });
+      for (const part of pieces) {
+        await this.messages.save(
+          this.messages.create({
+            conversationId: conversation.id,
+            companyId: conversation.companyId,
+            role: part.role,
+            text: part.text,
+            attachments: [],
+          }),
+        );
+      }
     };
 
     if (callbackData.startsWith("cmp:")) {
@@ -441,8 +504,8 @@ export class TelegramService {
       return;
     }
 
-    if (text.startsWith("/start")) {
-      const payload = this.parseStartPayload(text);
+    if (rawText.startsWith("/start")) {
+      const payload = this.parseStartPayload(rawText);
       if (this.isSharedBot(bot)) {
         const company = await this.getCompanyByStartPayload(payload);
         if (company) {
@@ -462,22 +525,37 @@ export class TelegramService {
         return;
       }
       c.state = "ASK_NAME";
-      c.context = {};
+      c.companyId = bot.companyId;
+      c.context = { ...ctx, targetCompanyId: bot.companyId, chatId };
       await this.conv.save(c);
-      const ar = await aiReply("ASK_NAME", {});
+      const ownCompany = await this.companies.findOne({
+        where: { id: bot.companyId, isActive: true },
+      });
+      const customWelcome = ownCompany?.welcomeMessage?.trim();
+      if (customWelcome) {
+        await send(customWelcome);
+        return;
+      }
+      const ar = await aiReply("ASK_NAME", {
+        targetCompanyId: bot.companyId,
+      });
       await send(ar ?? "Здравствуйте! Как вас зовут?");
       return;
     }
 
-    if (this.isSharedBot(bot) && !ctx.targetCompanyId && c.state === "PICK_COMPANY") {
-      if (!text) {
+    if (
+      this.isSharedBot(bot) &&
+      !ctx.targetCompanyId &&
+      c.state === "PICK_COMPANY"
+    ) {
+      if (!userTextForFlow) {
         await send("Напишите название компании текстом.");
         return;
       }
       await saveIncoming(c);
       c.state = "PICK_COMPANY";
       await this.conv.save(c);
-      await this.sendCompanySearchResult(bot, chatId, text, 0);
+      await this.sendCompanySearchResult(bot, chatId, userTextForFlow, 0);
       return;
     }
 
@@ -487,8 +565,8 @@ export class TelegramService {
     const currentCompany = currentCompanyId
       ? await this.companies.findOne({ where: { id: currentCompanyId } })
       : null;
-    const materials =
-      ((currentCompany?.botMaterials as Array<{
+    const materials = (
+      (currentCompany?.botMaterials as Array<{
         title?: string;
         fileName?: string;
         mime?: string;
@@ -496,8 +574,11 @@ export class TelegramService {
         url?: string;
         key?: string;
         groupId?: string | null;
-      }>) || []).filter((x) => x.url);
-    const ctxAskMaterials = Boolean((ctx as Record<string, unknown>).askMaterialsConfirm);
+      }>) || []
+    ).filter((x) => x.url);
+    const ctxAskMaterials = Boolean(
+      (ctx as Record<string, unknown>).askMaterialsConfirm,
+    );
     if (ctxAskMaterials && yesAnswer && materials.length) {
       await this.sendCompanyMaterials(bot, chatId, materials);
       c.context = { ...ctx, askMaterialsConfirm: false };
@@ -511,9 +592,10 @@ export class TelegramService {
       await send("Хорошо, тогда продолжим без материалов.");
       return;
     }
-    const asksForMaterials = /(меню|каталог|прайс|видео|фото|материал|пример|портфолио)/i.test(
-      text,
-    );
+    const asksForMaterials =
+      /(меню|каталог|прайс|видео|фото|материал|пример|портфолио)/i.test(
+        userTextForFlow,
+      );
     if (materials.length && asksForMaterials && !ctxAskMaterials) {
       c.context = { ...ctx, askMaterialsConfirm: true };
       await this.conv.save(c);
@@ -522,20 +604,23 @@ export class TelegramService {
     }
 
     if (c.state === "ASK_NAME") {
-      if (!text) {
+      if (!userTextForFlow) {
         await send("Введите имя текстом.");
         return;
       }
       await saveIncoming(c);
-      c.context = { ...ctx, name: text };
+      c.context = { ...ctx, name: userTextForFlow };
       c.state = "ASK_PHONE";
       await this.conv.save(c);
-      const ar = await aiReply("ASK_PHONE", c.context as Record<string, unknown>);
+      const ar = await aiReply(
+        "ASK_PHONE",
+        c.context as Record<string, unknown>,
+      );
       await this.askPhone(bot, chatId, ar);
       return;
     }
     if (c.state === "ASK_PHONE") {
-      const phone = contactPhone || text;
+      const phone = contactPhone || userTextForFlow;
       if (!phone) {
         await this.askPhone(bot, chatId);
         return;
@@ -545,7 +630,10 @@ export class TelegramService {
       c.state = "ASK_NEED";
       await this.conv.save(c);
       await this.clearKeyboard(bot, chatId);
-      const ar = await aiReply("ASK_NEED", c.context as Record<string, unknown>);
+      const ar = await aiReply(
+        "ASK_NEED",
+        c.context as Record<string, unknown>,
+      );
       const tail = materials.length
         ? "\nЕсли хотите, могу сразу отправить меню/каталог и примеры."
         : "";
@@ -553,7 +641,7 @@ export class TelegramService {
       return;
     }
     if (c.state === "ASK_NEED") {
-      if (!text) {
+      if (!userTextForFlow) {
         await send("Опишите, пожалуйста, ваш запрос текстом.");
         return;
       }
@@ -570,7 +658,7 @@ export class TelegramService {
       }
       const can = await this.billing.canCreateLead(targetCompanyId);
       if (!can) {
-        await send("Лимит лидов на тарифе исчерпан. Попробуйте позже.");
+        await send("Лимит заявок на тарифе исчерпан. Попробуйте позже.");
         return;
       }
       const existingLead = await this.leads.getByConversationId(c.id);
@@ -578,9 +666,11 @@ export class TelegramService {
         await this.leads.createLead({
           companyId: targetCompanyId,
           conversationId: c.id,
-          fullName: String((c.context as Record<string, unknown>).name || "Unknown"),
+          fullName: String(
+            (c.context as Record<string, unknown>).name || "Unknown",
+          ),
           phone: String((c.context as Record<string, unknown>).phone || ""),
-          need: text,
+          need: userTextForFlow,
           source: "telegram_bot",
           details: {
             telegramUserId: String(fromId),
@@ -588,30 +678,34 @@ export class TelegramService {
           },
         });
         await this.billing.incrementLead(targetCompanyId);
-      logInfo(this.log, "lead_created_from_telegram", {
-        botId: bot.id,
-        companyId: targetCompanyId,
-        conversationId: c.id,
-        fromId: String(fromId),
-      });
+        logInfo(this.log, "lead_created_from_telegram", {
+          botId: bot.id,
+          companyId: targetCompanyId,
+          conversationId: c.id,
+          fromId: String(fromId),
+        });
       }
       c.state = "DONE";
       c.companyId = targetCompanyId;
       await this.conv.save(c);
-      const doneCtx = { ...c.context, need: text };
+      const doneCtx = { ...c.context, need: userTextForFlow };
       const ar = await aiReply("DONE", doneCtx as Record<string, unknown>);
-      await send(ar ?? "Спасибо, заявку передал(а) коллегам. Если нужно, могу помочь с уточнениями.");
+      await send(
+        ar ??
+          "Спасибо, заявку передал(а) коллегам. Если нужно, могу помочь с уточнениями.",
+      );
       return;
     }
 
     if (c.state === "DONE") {
-      if (!text) {
+      if (!userTextForFlow) {
         await send("Я на связи. Могу помочь с уточнениями по вашей заявке.");
         return;
       }
-      const wantsNewRequest = /(нов\w+\s+заявк|ещ[её]\s+заявк|другой\s+вопрос|новый\s+запрос)/i.test(
-        text,
-      );
+      const wantsNewRequest =
+        /(нов\w+\s+заявк|ещ[её]\s+заявк|другой\s+вопрос|новый\s+запрос)/i.test(
+          userTextForFlow,
+        );
       if (wantsNewRequest) {
         c.state = "ASK_NEED";
         await this.conv.save(c);
@@ -624,6 +718,262 @@ export class TelegramService {
           "Понял вас. Если хотите, могу оформить еще одну заявку: просто напишите «новая заявка».",
       );
     }
+  }
+
+  private billingCompanyForMultimodal(
+    bot: BotConnection,
+    ctx: Record<string, unknown>,
+    c: Conversation,
+  ): string | null {
+    if (this.isSharedBot(bot)) {
+      const id = String((ctx.targetCompanyId as string) || c.companyId || "");
+      if (!id || id === "__shared__") return null;
+      return id;
+    }
+    if (!bot.companyId || bot.companyId === "__shared__") return null;
+    return bot.companyId;
+  }
+
+  private async downloadTelegramFile(
+    bot: BotConnection,
+    fileId: string,
+  ): Promise<Buffer | null> {
+    try {
+      const token = this.encryption.decrypt(bot.tokenEncrypted);
+      const meta = await axios.get<{ result?: { file_path?: string; file_size?: number } }>(
+        `https://api.telegram.org/bot${token}/getFile`,
+        { params: { file_id: fileId } },
+      );
+      const fp = meta.data?.result?.file_path;
+      const sz = meta.data?.result?.file_size;
+      if (!fp) return null;
+      if (sz != null && sz > MAX_TG_DOWNLOAD_BYTES) return null;
+      const url = `https://api.telegram.org/file/bot${token}/${fp}`;
+      const file = await axios.get(url, {
+        responseType: "arraybuffer",
+        maxContentLength: MAX_TG_DOWNLOAD_BYTES,
+        maxBodyLength: MAX_TG_DOWNLOAD_BYTES,
+      });
+      return Buffer.from(file.data as ArrayBuffer);
+    } catch (e) {
+      logError(this.log, "telegram_download_file_failed", {
+        botId: bot.id,
+        message: e instanceof Error ? e.message : "download_error",
+      });
+      return null;
+    }
+  }
+
+  private async audioBufferToWavBase64(buf: Buffer): Promise<string | null> {
+    const id = randomUUID();
+    const inPath = join(tmpdir(), `tg-a-${id}.bin`);
+    const outPath = join(tmpdir(), `tg-a-${id}.wav`);
+    try {
+      await writeFile(inPath, buf);
+      await execFileAsync(
+        "ffmpeg",
+        ["-y", "-i", inPath, "-ar", "16000", "-ac", "1", "-f", "wav", outPath],
+        { timeout: 120_000 },
+      );
+      const wav = await readFile(outPath);
+      return wav.toString("base64");
+    } catch (e) {
+      logError(this.log, "telegram_ffmpeg_voice_failed", {
+        message: e instanceof Error ? e.message : "ffmpeg_error",
+      });
+      return null;
+    } finally {
+      await unlink(inPath).catch(() => undefined);
+      await unlink(outPath).catch(() => undefined);
+    }
+  }
+
+  private async extractPdfPlainText(buf: Buffer): Promise<string> {
+    try {
+      const mod = await import("pdf-parse");
+      const pdfParse = mod.default as (
+        b: Buffer,
+      ) => Promise<{ text?: string }>;
+      const res = await pdfParse(buf);
+      return String(res?.text || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * Собирает текст пользователя: подпись + текст + (на Business/Pro) смысл голоса, фото, PDF.
+   * На Basic голос/фото/PDF не обрабатываются и клиенту не объясняют про тариф — только текст/подпись.
+   * Возвращает null, если уже отправлено служебное сообщение и обработку стоит прервать.
+   */
+  private async resolveTelegramMultimodalUserText(
+    bot: BotConnection,
+    userMsg: Record<string, unknown>,
+    rawText: string,
+    caption: string,
+    c: Conversation,
+    ctx: Record<string, unknown>,
+    send: (t: string) => Promise<void>,
+  ): Promise<string | null> {
+    const base = [rawText, caption].filter(Boolean).join("\n").trim();
+    if (rawText.startsWith("/start")) return base;
+
+    const voice = userMsg.voice as
+      | { file_id?: string; file_size?: number }
+      | undefined;
+    const audio = userMsg.audio as
+      | { file_id?: string; file_size?: number; mime_type?: string }
+      | undefined;
+    const photos = userMsg.photo as
+      | Array<{ file_id?: string; file_size?: number }>
+      | undefined;
+    const doc = userMsg.document as
+      | {
+          file_id?: string;
+          file_name?: string;
+          mime_type?: string;
+          file_size?: number;
+        }
+      | undefined;
+
+    const voiceId = voice?.file_id;
+    const audioId =
+      !voiceId && audio?.file_id && (audio.file_size ?? 0) <= 12 * 1024 * 1024
+        ? audio.file_id
+        : undefined;
+    const audioFileId = voiceId || audioId;
+    const largestPhoto = Array.isArray(photos)
+      ? photos.reduce(
+          (best, cur) =>
+            (cur.file_size ?? 0) > (best?.file_size ?? 0) ? cur : best,
+          undefined as { file_id?: string; file_size?: number } | undefined,
+        )
+      : undefined;
+    const photoId = largestPhoto?.file_id;
+    const docMime = String(doc?.mime_type || "").toLowerCase();
+    const docName = String(doc?.file_name || "").toLowerCase();
+    const isPdf =
+      docMime === "application/pdf" || docName.endsWith(".pdf");
+    const isImageDoc =
+      docMime.startsWith("image/") &&
+      (docMime === "image/jpeg" ||
+        docMime === "image/jpg" ||
+        docMime === "image/png" ||
+        docMime === "image/webp");
+    const docId =
+      doc?.file_id && (isPdf || isImageDoc) ? doc.file_id : undefined;
+    const unsupportedDoc =
+      doc?.file_id && !isPdf && !isImageDoc ? doc.file_id : undefined;
+
+    if (
+      !audioFileId &&
+      !photoId &&
+      !docId &&
+      !unsupportedDoc
+    ) {
+      return base;
+    }
+
+    const companyId = this.billingCompanyForMultimodal(bot, ctx, c);
+    if (!companyId) {
+      await send(
+        "Сначала выберите компанию (или начните с /start), чтобы я мог обработать вложение.",
+      );
+      return null;
+    }
+
+    const multimodalAllowed =
+      await this.billing.supportsMultimodalTelegram(companyId);
+    if (!multimodalAllowed) {
+      return base;
+    }
+
+    if (!this.timewebAi.isEnabled()) {
+      return base;
+    }
+
+    if (unsupportedDoc) {
+      await send(
+        "Пока умею разбирать PDF и изображения. Пришлите в таком формате или опишите текстом.",
+      );
+      return null;
+    }
+
+    const pieces: string[] = [];
+    if (base) pieces.push(base);
+
+    if (audioFileId) {
+      const buf = await this.downloadTelegramFile(bot, audioFileId);
+      if (!buf) {
+        await send("Не удалось скачать аудио. Попробуйте ещё раз.");
+        return null;
+      }
+      const wavB64 = await this.audioBufferToWavBase64(buf);
+      if (!wavB64) {
+        await send(
+          "Не удалось подготовить аудио к распознаванию. Напишите текстом или попробуйте позже.",
+        );
+        return null;
+      }
+      const tr = await this.timewebAi.interpretVoiceWavBase64(wavB64);
+      if (tr) pieces.push(`[Голос] ${tr}`);
+    }
+
+    if (photoId) {
+      const buf = await this.downloadTelegramFile(bot, photoId);
+      if (!buf) {
+        await send("Не удалось скачать фото.");
+        return null;
+      }
+      const hint = caption || rawText || "";
+      const desc = await this.timewebAi.interpretImageBuffer(
+        buf,
+        "image/jpeg",
+        hint,
+      );
+      if (desc) pieces.push(`[Фото] ${desc}`);
+    }
+
+    if (docId && isPdf) {
+      const buf = await this.downloadTelegramFile(bot, docId);
+      if (!buf) {
+        await send("Не удалось скачать PDF.");
+        return null;
+      }
+      const extracted = await this.extractPdfPlainText(buf);
+      if (!extracted) {
+        await send(
+          "В PDF не удалось извлечь текст (возможно, скан). Опишите суть текстом.",
+        );
+        return null;
+      }
+      const hint = caption || rawText || "";
+      const summary = await this.timewebAi.summarizePdfExtract(
+        extracted,
+        hint,
+      );
+      if (summary) pieces.push(`[PDF] ${summary}`);
+    } else if (docId && isImageDoc) {
+      const buf = await this.downloadTelegramFile(bot, docId);
+      if (!buf) {
+        await send("Не удалось скачать файл.");
+        return null;
+      }
+      const hint = caption || rawText || "";
+      const mime =
+        docMime === "image/png" || docMime === "image/webp"
+          ? docMime
+          : "image/jpeg";
+      const desc = await this.timewebAi.interpretImageBuffer(buf, mime, hint);
+      if (desc) pieces.push(`[Файл] ${desc}`);
+    }
+
+    const merged = pieces.join("\n\n").trim();
+    if (!merged) {
+      await send("Не получилось распознать содержимое. Напишите текстом.");
+      return null;
+    }
+    return merged;
   }
 
   private async sendChatMessage(

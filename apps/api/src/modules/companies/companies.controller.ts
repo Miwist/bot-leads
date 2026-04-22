@@ -25,7 +25,8 @@ export class CompaniesController {
   @ApiOperation({ summary: "Создать компанию" })
   create(
     @Body() b: Record<string, unknown>,
-    @Req() req: { user: { sub: string; companyId?: string | null; role?: string } },
+    @Req()
+    req: { user: { sub: string; companyId?: string | null; role?: string } },
   ) {
     if (req.user.role === "manager") {
       throw new ForbiddenException("Менеджер не может создавать компанию");
@@ -36,7 +37,10 @@ export class CompaniesController {
   @Get()
   @ApiOperation({ summary: "Список компаний текущего пользователя" })
   list(
-    @Req() req: { user: { sub: string; companyId?: string | null; role?: string } },
+    @Req()
+    req: {
+      user: { sub: string; companyId?: string | null; role?: string };
+    },
   ) {
     return this.s.list(req.user);
   }
@@ -45,7 +49,10 @@ export class CompaniesController {
   @ApiOperation({ summary: "Получить компанию" })
   get(
     @Param("id") id: string,
-    @Req() req: { user: { companyId?: string | null; role?: string } },
+    @Req()
+    req: {
+      user: { sub: string; companyId?: string | null; role?: string };
+    },
   ) {
     return this.s.get(id, req.user);
   }
@@ -55,7 +62,10 @@ export class CompaniesController {
   update(
     @Param("id") id: string,
     @Body() b: Record<string, unknown>,
-    @Req() req: { user: { companyId?: string | null; role?: string } },
+    @Req()
+    req: {
+      user: { sub: string; companyId?: string | null; role?: string };
+    },
   ) {
     return this.s.update(id, b, req.user);
   }
@@ -65,7 +75,10 @@ export class CompaniesController {
   removeBotMaterial(
     @Param("id") id: string,
     @Param("materialId") materialId: string,
-    @Req() req: { user: { companyId?: string | null; role?: string } },
+    @Req()
+    req: {
+      user: { sub: string; companyId?: string | null; role?: string };
+    },
   ) {
     return this.s.removeBotMaterial(id, materialId, req.user);
   }
