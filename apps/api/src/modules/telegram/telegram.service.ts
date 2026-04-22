@@ -24,9 +24,6 @@ import { logError, logInfo, logWarn } from "../../common/logging";
 const execFileAsync = promisify(execFile);
 const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
 
-const execFileAsync = promisify(execFile);
-const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
-
 @Injectable()
 export class TelegramService {
   private readonly log = new Logger(TelegramService.name);
