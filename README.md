@@ -1,6 +1,6 @@
 # AI-продавец Monorepo (MVP)
 
-[![CI](https://github.com/Miwist/bot-leads/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+[![Deploy](https://github.com/Miwist/bot-leads/actions/workflows/deploy-ventaria.yml/badge.svg)](https://github.com/Miwist/bot-leads/actions/workflows/deploy-ventaria.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -41,7 +41,7 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up --
 
 ## Timeweb Cloud AI
 
-В `infra/.env` задайте `TIMEWEB_AI_ACCESS_TOKEN` и `TIMEWEB_AI_AGENT_ID` (идентификатор агента вида `agt_...` из панели Timeweb). Опционально `TIMEWEB_AI_PROXY_SOURCE`. Тогда ответы в Telegram на шагах сбора лида идут через библиотеку `timeweb-cloud-ai` (`agent.call`); без переменных остаются скриптовые фразы.
+В `infra/.env` задайте `TIMEWEB_AI_ACCESS_TOKEN` и `TIMEWEB_AI_AGENT_ID` (идентификатор агента вида `agt_...` из панели Timeweb). Опционально `TIMEWEB_AI_PROXY_SOURCE`. Тогда ответы в Telegram на шагах сбора заявки идут через библиотеку `timeweb-cloud-ai` (`agent.call`); без переменных остаются скриптовые фразы.
 
 ## Если Docker не стартует
 
@@ -74,7 +74,7 @@ npm run format:check
 
 ## CI/CD
 
-В репозитории есть заготовка [`.github/workflows/ci.yml`](.github/workflows/ci.yml): установка зависимостей и сборка воркспейсов. **Публикация в registry, деплой и любые шаги с push артефактов не настроены** — их можно добавить отдельным workflow или job’ами позже.
+Деплой на сервер: [`.github/workflows/deploy-ventaria.yml`](.github/workflows/deploy-ventaria.yml) (push в `main` / `master`). Сборка API и статического фронта, rsync в `DEPLOY_PATH`, Docker Compose (см. `deploy/ventaria/docker-compose.yml`). Секреты GitHub: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`. Опциональные variables: `DEPLOY_PATH`, `NEXT_PUBLIC_API_URL`.
 
 ## Что реализовано
 
@@ -83,8 +83,8 @@ npm run format:check
 - Подключение bot token через Telegram getMe
 - Telegram: режим **webhook** (прод) или **polling** (Docker dev); ответы пользователю через **sendMessage**
 - Endpoint `/telegram/webhook` для Telegram в режиме webhook (`X-Telegram-Bot-Api-Secret-Token`)
-- Диалог Telegram (start -> name -> phone -> need) и создание lead
-- Round-robin назначение лида активному менеджеру
+- Диалог Telegram (start -> name -> phone -> need) и создание заявки
+- Round-robin назначение заявки активному менеджеру
 - Тарифные лимиты Starter/Growth/Pro
 - Кабинет (login/register/dashboard/leads/managers/bots/settings/billing)
 

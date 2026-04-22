@@ -41,7 +41,8 @@ export class TelegramTransportListener {
   @OnEvent(TELEGRAM_BOT_BEFORE_DEACTIVATE_EVENT)
   async onBeforeDeactivate(bot: BotConnection) {
     try {
-      if (this.updatesMode() === "polling") await this.polling.unregister(bot.id);
+      if (this.updatesMode() === "polling")
+        await this.polling.unregister(bot.id);
       else await this.webhook.deleteForBot(bot);
     } catch (e) {
       this.log.error(`Не удалось отписать бота ${bot.id}`, e);

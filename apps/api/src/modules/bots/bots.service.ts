@@ -31,8 +31,7 @@ export class BotsService {
     const token = this.config.get<string>("GLOBAL_BOT_TOKEN")?.trim();
     const companyId = "__shared__";
     const secret =
-      this.config.get<string>("GLOBAL_BOT_SECRET")?.trim() ||
-      "global-secret";
+      this.config.get<string>("GLOBAL_BOT_SECRET")?.trim() || "global-secret";
     if (!token) {
       return { ok: false, reason: "no_token" };
     }

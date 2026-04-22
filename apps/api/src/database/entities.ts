@@ -14,6 +14,8 @@ export class User {
   @Column() passwordHash: string;
   @Column({ default: "owner" }) role: string;
   @Column({ type: "varchar", nullable: true }) companyId: string | null;
+  /** Числовой Telegram chat_id владельца/пользователя для уведомлений. */
+  @Column({ type: "varchar", nullable: true }) telegramChatId: string | null;
   @CreateDateColumn() createdAt: Date;
 }
 
@@ -27,6 +29,14 @@ export class Company {
   @Column({ type: "varchar", default: "shared" }) botMode: string;
   @Column({ type: "text", nullable: true }) description: string | null;
   @Column({ type: "text", nullable: true }) botObjective: string | null;
+  /** Тон общения ассистента (например: «сдержанно-деловой», «теплый»). */
+  @Column({ type: "text", nullable: true }) communicationTone: string | null;
+  /** Первое сообщение после /start — только для своего бота (не общий). */
+  @Column({ type: "text", nullable: true }) welcomeMessage: string | null;
+  /** Доп. инструкция для ИИ в диалоге (политика, табу, стиль). */
+  @Column({ type: "text", nullable: true }) assistantInstruction: string | null;
+  /** Подпись в общем боте, чтобы отличить компанию с похожим названием. */
+  @Column({ type: "text", nullable: true }) clientDisambiguation: string | null;
   @Column({ type: "varchar", default: "Europe/Moscow" }) timezone: string;
   @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
   dataFields: string[];
@@ -42,7 +52,12 @@ export class Company {
     groupId?: string | null;
   }>;
   @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
-  leadStatuses: { code: string; label: string; order: number; system?: boolean }[];
+  leadStatuses: {
+    code: string;
+    label: string;
+    order: number;
+    system?: boolean;
+  }[];
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

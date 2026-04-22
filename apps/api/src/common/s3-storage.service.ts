@@ -1,6 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 import { logError, logInfo, logWarn } from "./logging";
 
@@ -17,7 +21,9 @@ export class S3StorageService {
     const region = (this.config.get<string>("S3_REGION") || "ru-1").trim();
     const bucket = (this.config.get<string>("S3_BUCKET") || "").trim();
     const accessKeyId = (this.config.get<string>("S3_ACCESS_KEY") || "").trim();
-    const secretAccessKey = (this.config.get<string>("S3_SECRET_KEY") || "").trim();
+    const secretAccessKey = (
+      this.config.get<string>("S3_SECRET_KEY") || ""
+    ).trim();
     this.publicBaseUrl = (
       this.config.get<string>("S3_PUBLIC_BASE_URL") || ""
     ).trim();

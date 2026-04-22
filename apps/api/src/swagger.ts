@@ -14,7 +14,7 @@ export function setupSwagger(app: INestApplication): void {
     .setTitle("AI Seller — HTTP API")
     .setDescription(
       [
-        "REST API личного кабинета: компании, менеджеры, лиды, боты и биллинг.",
+        "REST API личного кабинета: компании, менеджеры, заявки, боты и биллинг.",
         "",
         "Для защищённых маршрутов укажите заголовок **Authorization** со значением `Bearer <токен>`.",
         "Токен выдаётся методами `POST /auth/register` и `POST /auth/login`.",

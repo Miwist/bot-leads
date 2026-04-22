@@ -1,4 +1,4 @@
-/** CRM-подобные статусы по умолчанию (коды стабильны для автоматики). */
+/** Статусы заявок по умолчанию (коды стабильны для автоматики). */
 export type LeadStatusItem = {
   code: string;
   label: string;
@@ -19,9 +19,7 @@ export const DEFAULT_LEAD_STATUSES: LeadStatusItem[] = [
 export const SYSTEM_STATUS_NEW = "new";
 export const SYSTEM_STATUS_IN_PROGRESS = "in_progress";
 
-export function normalizeLeadStatuses(
-  raw: unknown,
-): LeadStatusItem[] {
+export function normalizeLeadStatuses(raw: unknown): LeadStatusItem[] {
   if (!Array.isArray(raw) || raw.length === 0) {
     return DEFAULT_LEAD_STATUSES.map((x) => ({ ...x }));
   }
