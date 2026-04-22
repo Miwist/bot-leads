@@ -33,6 +33,7 @@ export class TelegramPollingService
 
   async onApplicationBootstrap() {
     if (this.updatesMode() !== "polling") return;
+    await this.bots.ensureGlobalBotFromEnv();
     const list = await this.bots.findAllActive();
     this.log.log(`Режим polling: запуск для ${list.length} ботов`);
     for (const b of list) {
@@ -50,7 +51,15 @@ export class TelegramPollingService
     });
     gBot.catch((err) => this.log.error(`Grammy error (бот ${bot.id})`, err));
     this.runners.set(bot.id, gBot);
-    void gBot.start();
+    void gBot.start().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Grammy throws "Aborted delay" when polling is intentionally stopped.
+      if (msg.includes("Aborted delay")) {
+        this.log.warn(`Polling для бота ${bot.id} остановлен`);
+        return;
+      }
+      this.log.error(`Polling завершился ошибкой (бот ${bot.id})`, err);
+    });
     this.log.log(`Polling запущен для @${bot.botUsername} (${bot.id})`);
   }
 

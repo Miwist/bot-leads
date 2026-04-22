@@ -7,24 +7,16 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-export enum LeadStatus {
-  NEW = "NEW",
-  QUALIFIED = "QUALIFIED",
-  ASSIGNED = "ASSIGNED",
-  PUSHED_TO_CRM = "PUSHED_TO_CRM",
-  FAILED = "FAILED",
-}
-
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column({ unique: true }) email: string;
   @Column() passwordHash: string;
   @Column({ default: "owner" }) role: string;
-  @Column({ type: "varchar", nullable: true })
-  companyId: string | null;
+  @Column({ type: "varchar", nullable: true }) companyId: string | null;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("companies")
 @Unique(["slug"])
 export class Company {
@@ -32,19 +24,41 @@ export class Company {
   @Column() name: string;
   @Column() slug: string;
   @Column({ default: true }) isActive: boolean;
+  @Column({ type: "varchar", default: "shared" }) botMode: string;
+  @Column({ type: "text", nullable: true }) description: string | null;
+  @Column({ type: "text", nullable: true }) botObjective: string | null;
+  @Column({ type: "varchar", default: "Europe/Moscow" }) timezone: string;
+  @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
+  dataFields: string[];
+  @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
+  botMaterials: Array<{
+    id: string;
+    title: string;
+    fileName: string;
+    mime: string;
+    kind: string; // auto | photo | video | document | voice | video_note | group
+    url: string;
+    key?: string;
+    groupId?: string | null;
+  }>;
+  @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
+  leadStatuses: { code: string; label: string; order: number; system?: boolean }[];
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }
+
 @Entity("managers")
 export class Manager {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column() companyId: string;
   @Column() name: string;
   @Column() email: string;
+  @Column({ type: "varchar", nullable: true }) chatId: string | null;
   @Column({ default: true }) isActive: boolean;
   @Column({ default: 0 }) rrOrder: number;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("bot_connections")
 export class BotConnection {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -55,6 +69,7 @@ export class BotConnection {
   @Column() webhookSecret: string;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("conversations")
 export class Conversation {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -62,10 +77,23 @@ export class Conversation {
   @Column() botConnectionId: string;
   @Column() telegramUserId: string;
   @Column({ type: "varchar", nullable: true }) state: string | null;
-  @Column({ type: "jsonb", default: () => ({}) })
+  @Column({ type: "jsonb", default: () => "'{}'::jsonb" })
   context: Record<string, unknown>;
   @CreateDateColumn() createdAt: Date;
 }
+
+@Entity("conversation_messages")
+export class ConversationMessage {
+  @PrimaryGeneratedColumn("uuid") id: string;
+  @Column() conversationId: string;
+  @Column() companyId: string;
+  @Column() role: string; // user | assistant | manager
+  @Column({ type: "text" }) text: string;
+  @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
+  attachments: Array<{ name?: string; data?: string }>;
+  @CreateDateColumn() createdAt: Date;
+}
+
 @Entity("leads")
 export class Lead {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -74,12 +102,19 @@ export class Lead {
   @Column() fullName: string;
   @Column() phone: string;
   @Column() need: string;
-  @Column({ type: "enum", enum: LeadStatus, default: LeadStatus.NEW })
-  status: LeadStatus;
+  @Column({ type: "varchar", nullable: true }) email: string | null;
+  @Column({ type: "varchar", nullable: true }) source: string | null;
+  @Column({ type: "varchar", nullable: true }) budget: string | null;
+  @Column({ type: "text", nullable: true }) comment: string | null;
+  @Column({ type: "jsonb", default: () => "'{}'::jsonb" })
+  details: Record<string, unknown>;
+  @Column({ type: "varchar", length: 64, default: "new" })
+  status: string;
   @Column({ type: "varchar", nullable: true })
   assignedManagerId: string | null;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("lead_assignments")
 export class LeadAssignment {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -88,6 +123,7 @@ export class LeadAssignment {
   @Column() managerId: string;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("plans")
 export class Plan {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -95,6 +131,7 @@ export class Plan {
   @Column() name: string;
   @Column() monthlyLeadLimit: number;
 }
+
 @Entity("subscriptions")
 export class Subscription {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -103,6 +140,7 @@ export class Subscription {
   @Column({ default: true }) isActive: boolean;
   @CreateDateColumn() createdAt: Date;
 }
+
 @Entity("usage_counters")
 export class UsageCounter {
   @PrimaryGeneratedColumn("uuid") id: string;
@@ -111,13 +149,46 @@ export class UsageCounter {
   @Column({ default: 0 }) leadsUsed: number;
   @Column({ default: 0 }) dialogsUsed: number;
 }
+
+@Entity("billing_payments")
+export class BillingPayment {
+  @PrimaryGeneratedColumn("uuid") id: string;
+  @Column() companyId: string;
+  @Column({ type: "varchar", nullable: true }) planCode: string | null;
+  @Column({ type: "int", nullable: true }) months: number | null;
+  @Column() amountRub: string;
+  @Column({ default: "RUB" }) currency: string;
+  @Column({ default: "pending" }) status: string;
+  @Column({ type: "varchar", unique: true, nullable: true })
+  yookassaPaymentId: string | null;
+  @Column({ type: "text", nullable: true }) confirmationUrl: string | null;
+  @Column({ type: "text", nullable: true }) returnUrl: string | null;
+  @Column({ type: "text", nullable: true }) description: string | null;
+  @CreateDateColumn() createdAt: Date;
+}
+
+@Entity("feedback_messages")
+export class FeedbackMessage {
+  @PrimaryGeneratedColumn("uuid") id: string;
+  @Column() companyId: string;
+  @Column({ type: "varchar", default: "Общий вопрос" }) topic: string;
+  @Column() senderRole: string; // company | admin
+  @Column({ type: "varchar", nullable: true }) senderUserId: string | null;
+  @Column({ type: "text" }) text: string;
+  @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
+  attachments: Array<{ name?: string; data?: string }>;
+  @Column({ type: "varchar", nullable: true }) attachmentName: string | null;
+  @Column({ type: "text", nullable: true }) attachmentData: string | null;
+  @CreateDateColumn() createdAt: Date;
+}
+
 @Entity("audit_logs")
 export class AuditLog {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column() companyId: string;
   @Column() actor: string;
   @Column() action: string;
-  @Column({ type: "jsonb", default: () => ({}) })
+  @Column({ type: "jsonb", default: () => "'{}'::jsonb" })
   payload: Record<string, unknown>;
   @CreateDateColumn() createdAt: Date;
 }
@@ -128,10 +199,13 @@ export const entities = [
   Manager,
   BotConnection,
   Conversation,
+  ConversationMessage,
   Lead,
   LeadAssignment,
   Plan,
   Subscription,
   UsageCounter,
+  BillingPayment,
+  FeedbackMessage,
   AuditLog,
 ];

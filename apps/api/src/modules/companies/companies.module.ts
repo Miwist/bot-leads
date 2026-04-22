@@ -1,12 +1,14 @@
 import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { Company } from "../../database/entities";
+import { Company, User } from "../../database/entities";
 import { CompaniesController } from "./companies.controller";
 import { CompaniesService } from "./companies.service";
+import { S3StorageService } from "../../common/s3-storage.service";
 @Module({
-  imports: [TypeOrmModule.forFeature([Company])],
+  imports: [ConfigModule, TypeOrmModule.forFeature([Company, User])],
   controllers: [CompaniesController],
-  providers: [CompaniesService],
+  providers: [CompaniesService, S3StorageService],
   exports: [CompaniesService],
 })
 export class CompaniesModule {}
