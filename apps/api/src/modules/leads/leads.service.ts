@@ -23,11 +23,61 @@ export class LeadsService {
     private managers: ManagersService,
   ) {}
 
-  list(companyId: string, status?: string) {
-    return this.leads.find({
-      where: { companyId, ...(status ? { status } : {}) },
-      order: { createdAt: "DESC" },
-    });
+  list(
+    companyId: string,
+    filters?: {
+      status?: string;
+      source?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      q?: string;
+    },
+  ) {
+    const qb = this.leads
+      .createQueryBuilder("l")
+      .where("l.companyId = :companyId", { companyId })
+      .orderBy("l.createdAt", "DESC");
+    const status = filters?.status?.trim();
+    if (status) {
+      qb.andWhere("l.status = :status", { status });
+    }
+    const source = filters?.source?.trim();
+    if (source) {
+      qb.andWhere("l.source = :source", { source });
+    }
+    const df = filters?.dateFrom?.trim();
+    if (df) {
+      const d = new Date(df);
+      if (!Number.isNaN(d.getTime())) {
+        qb.andWhere("l.createdAt >= :df", { df: d });
+      }
+    }
+    const dt = filters?.dateTo?.trim();
+    if (dt) {
+      const d = new Date(dt);
+      if (!Number.isNaN(d.getTime())) {
+        d.setHours(23, 59, 59, 999);
+        qb.andWhere("l.createdAt <= :dt", { dt: d });
+      }
+    }
+    const q = filters?.q?.trim();
+    if (q) {
+      const esc = q.replace(/%/g, "\\%").replace(/_/g, "\\_");
+      const like = `%${esc}%`;
+      qb.andWhere(
+        "(l.fullName ILIKE :like OR l.phone ILIKE :like OR l.need ILIKE :like OR COALESCE(l.email, '') ILIKE :like OR COALESCE(l.comment, '') ILIKE :like)",
+        { like },
+      );
+    }
+    return qb.getMany();
+  }
+
+  async distinctSources(companyId: string) {
+    const rows = (await this.leads.manager.query(
+      `SELECT DISTINCT "source" AS source FROM leads WHERE "companyId" = $1 AND "source" IS NOT NULL AND TRIM("source") <> '' ORDER BY 1 ASC`,
+      [companyId],
+    )) as { source: string }[];
+    return rows.map((r) => r.source).filter(Boolean);
   }
 
   async stats(companyId: string) {
@@ -81,12 +131,16 @@ export class LeadsService {
     const lead = await this.leads.findOne({ where: { id } });
     if (!lead) throw new NotFoundException();
     const patch: Partial<Lead> = {};
-    if (typeof data.fullName === "string") patch.fullName = data.fullName.trim();
+    if (typeof data.fullName === "string")
+      patch.fullName = data.fullName.trim();
     if (typeof data.phone === "string") patch.phone = data.phone.trim();
     if (typeof data.need === "string") patch.need = data.need.trim();
-    if (typeof data.email === "string" || data.email === null) patch.email = data.email;
-    if (typeof data.source === "string" || data.source === null) patch.source = data.source;
-    if (typeof data.budget === "string" || data.budget === null) patch.budget = data.budget;
+    if (typeof data.email === "string" || data.email === null)
+      patch.email = data.email;
+    if (typeof data.source === "string" || data.source === null)
+      patch.source = data.source;
+    if (typeof data.budget === "string" || data.budget === null)
+      patch.budget = data.budget;
     if (typeof data.comment === "string" || data.comment === null) {
       patch.comment = data.comment;
     }

@@ -8,7 +8,11 @@ import { BotsModule } from "../bots/bots.module";
 import { LeadsModule } from "../leads/leads.module";
 import { BillingModule } from "../billing/billing.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { Company, Conversation, ConversationMessage } from "../../database/entities";
+import {
+  Company,
+  Conversation,
+  ConversationMessage,
+} from "../../database/entities";
 import { AiModule } from "../ai/ai.module";
 @Module({
   imports: [

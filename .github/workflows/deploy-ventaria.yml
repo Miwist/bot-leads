@@ -1,0 +1,83 @@
+# CD: статика в DEPLOY_PATH, API в Docker (Postgres + Nest).
+# .env на сервере в каталоге деплоя не удаляется (rsync --filter='protect .env').
+#
+# Secrets (Settings → Secrets): SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
+# Variables (опционально): DEPLOY_PATH (по умолчанию /var/www/ai.ventaria.ru), NEXT_PUBLIC_API_URL
+
+name: Deploy Ventaria
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ventaria-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/ai.ventaria.ru' }}
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://ai.ventaria.ru' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Имена пакетов из apps/*/package.json (npm 10+ в CI надёжнее, чем путь apps/web)
+      - name: Build API
+        run: npm run build -w api
+
+      - name: Build web (static export)
+        run: npm run build -w web
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add SSH known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync static frontend
+        run: |
+          rsync -avz --delete \
+            --filter='protect .env' \
+            --filter='protect api/' \
+            --filter='protect docker-compose.yml' \
+            -e "ssh -o StrictHostKeyChecking=yes" \
+            apps/web/out/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${DEPLOY_PATH}/"
+
+      - name: Sync API sources for Docker build
+        run: |
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=yes" \
+            --exclude node_modules \
+            --exclude dist \
+            --exclude .git \
+            --exclude coverage \
+            --exclude .env \
+            apps/api/ "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${DEPLOY_PATH}/api/"
+
+      - name: Sync Docker Compose
+        run: |
+          scp -o StrictHostKeyChecking=yes \
+            deploy/ventaria/docker-compose.yml \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${DEPLOY_PATH}/docker-compose.yml"
+
+      - name: Rebuild and restart containers
+        run: |
+          ssh -o StrictHostKeyChecking=yes \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "cd '${DEPLOY_PATH}' && docker compose pull postgres 2>/dev/null || true && docker compose build api && docker compose up -d --remove-orphans"

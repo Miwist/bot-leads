@@ -1,9 +1,9 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsEmail, IsString, MinLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsEmail, IsOptional, IsString, MinLength } from "class-validator";
 
 export class AuthCredentialsDto {
   @ApiProperty({ example: "owner@company.ru", description: "Email" })
-  @IsEmail()
+  @IsEmail({}, { message: "Укажите корректную почту." })
   email: string;
 
   @ApiProperty({
@@ -11,7 +11,17 @@ export class AuthCredentialsDto {
     description: "Пароль, не короче 6 символов",
     minLength: 6,
   })
-  @IsString()
-  @MinLength(6)
+  @IsString({ message: "Введите пароль." })
+  @MinLength(6, { message: "Пароль не короче 6 символов." })
   password: string;
+}
+
+export class UpdateProfileDto {
+  @ApiPropertyOptional({
+    description:
+      "Числовой Telegram chat_id (например из @userinfobot). Пустая строка — сбросить.",
+  })
+  @IsOptional()
+  @IsString()
+  telegramChatId?: string;
 }
