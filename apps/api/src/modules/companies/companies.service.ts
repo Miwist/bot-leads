@@ -99,6 +99,17 @@ export class CompaniesService {
           mime = uploaded.mime;
         }
       }
+      // В БД мог остаться data: URL без повторной отправки `data` — Telegram так не принимает
+      if (url.startsWith("data:")) {
+        const uploaded = await this.storage.uploadDataUrl(url, {
+          prefix: `companies/${companyId}/materials`,
+          fileName,
+        });
+        if (!uploaded) continue;
+        url = uploaded.url;
+        key = uploaded.key;
+        mime = uploaded.mime;
+      }
       if (!url) continue;
       out.push({
         id,

@@ -1,5 +1,5 @@
-# Продакшен: API + Postgres (статический фронт — файлы из apps/web/out в корне DEPLOY_PATH).
-# На сервере один раз создайте .env в этом каталоге — при деплое он не перезаписывается.
+# Продакшен: API + Postgres. Статика — в sibling-каталоге public/ (см. workflow deploy-ventaria).
+# На сервере один раз создайте .env рядом с этим файлом (${DEPLOY_HOME}/.env) — деплой его не затирает.
 #
 # DATABASE_URL: postgres://USER:PASS@postgres:5432/DB
 #

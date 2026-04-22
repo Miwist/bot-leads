@@ -74,7 +74,7 @@ npm run format:check
 
 ## CI/CD
 
-Деплой на сервер: [`.github/workflows/deploy-ventaria.yml`](.github/workflows/deploy-ventaria.yml) (push в `main` / `master`). Сборка API и статического фронта, rsync в `DEPLOY_PATH`, Docker Compose (см. `deploy/ventaria/docker-compose.yml`). Секреты GitHub: `SSH_PRIVATE_KEY`, `SSH_HOST`, `SSH_USER`. Опциональные variables: `DEPLOY_PATH`, `NEXT_PUBLIC_API_URL`.
+Деплой на сервер: [`.github/workflows/deploy-ventaria.yml`](.github/workflows/deploy-ventaria.yml) (push в `main` / `master`). Сборка в CI, на сервер: `${DEPLOY_HOME}/public` ← `apps/web/out`, `${DEPLOY_HOME}/api` ← исходники API, `${DEPLOY_HOME}/docker-compose.yml`. Секреты: `SSH_PRIVATE_KEY` (или `SERVER_SSH_KEY`), `SSH_HOST` (или `SERVER_IP`), `SSH_USER`; опционально `SERVER_DEPLOY_HOME`. Variables: `DEPLOY_PATH` (если нет `SERVER_DEPLOY_HOME`), `NEXT_PUBLIC_API_URL`.
 
 ## Что реализовано
 

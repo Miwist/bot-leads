@@ -19,7 +19,10 @@ import { BotsService } from "../bots/bots.service";
 import { LeadsService } from "../leads/leads.service";
 import { BillingService } from "../billing/billing.service";
 import { TimewebAiService } from "../ai/timeweb-ai.service";
-import { logError, logInfo } from "../../common/logging";
+import { logError, logInfo, logWarn } from "../../common/logging";
+
+const execFileAsync = promisify(execFile);
+const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
 
 const execFileAsync = promisify(execFile);
 const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
@@ -104,16 +107,30 @@ export class TelegramService {
     mime?: string;
     fileName?: string;
   }) {
-    if (item.kind && item.kind !== "auto" && item.kind !== "group")
-      return item.kind;
     const mime = String(item.mime || "").toLowerCase();
     const fileName = String(item.fileName || "").toLowerCase();
+    if (item.kind && item.kind !== "auto" && item.kind !== "group") {
+      if (
+        item.kind === "photo" &&
+        (mime === "application/pdf" ||
+          fileName.endsWith(".pdf") ||
+          (!mime.startsWith("image/") &&
+            /\.(pdf|doc|docx|zip)$/.test(fileName)))
+      ) {
+        return "document";
+      }
+      return item.kind;
+    }
     if (mime.startsWith("image/")) return "photo";
     if (mime.startsWith("video/")) return "video";
     if (mime.startsWith("audio/ogg") || fileName.endsWith(".ogg"))
       return "voice";
     if (mime.startsWith("audio/")) return "document";
     return "document";
+  }
+
+  private tgCaption(text: string) {
+    return String(text || "").trim().slice(0, 1024);
   }
 
   private resolveMaterialUrl(item: { url?: string; key?: string }) {
@@ -161,31 +178,62 @@ export class TelegramService {
         singles.push(m);
       }
     }
+
+    const postTg = async (method: string, body: Record<string, unknown>) => {
+      try {
+        await axios.post(
+          `https://api.telegram.org/bot${token}/${method}`,
+          body,
+        );
+      } catch (e) {
+        const ax = axios.isAxiosError(e) ? e : null;
+        const desc = ax?.response?.data as { description?: string } | undefined;
+        logError(this.log, "telegram_send_material_failed", {
+          botId: bot.id,
+          method,
+          status: ax?.response?.status,
+          telegram: desc?.description || ax?.message || "request_error",
+        });
+        throw e;
+      }
+    };
+
     for (const [gid, rows] of groups.entries()) {
       const media = rows
         .map((m) => {
           const kind = this.inferMaterialKind(m);
           const resolvedUrl = this.resolveMaterialUrl(m);
+          if (resolvedUrl.startsWith("data:")) {
+            logWarn(this.log, "telegram_material_skip_data_url", {
+              botId: bot.id,
+              title: m.title,
+            });
+            return null;
+          }
           if (!["photo", "video", "document"].includes(kind)) return null;
           return {
             type: kind,
             media: resolvedUrl,
-            caption: m.title || gid,
+            caption: this.tgCaption(m.title || gid),
           };
         })
         .filter(Boolean);
       if (!media.length) continue;
-      await axios.post(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
-        chat_id: chatId,
-        media,
-      });
+      await postTg("sendMediaGroup", { chat_id: chatId, media });
     }
     for (const m of singles) {
       const kind = this.inferMaterialKind(m);
-      const caption = m.title || "";
+      const caption = this.tgCaption(m.title || "");
       const resolvedUrl = this.resolveMaterialUrl(m);
+      if (resolvedUrl.startsWith("data:")) {
+        logWarn(this.log, "telegram_material_skip_data_url", {
+          botId: bot.id,
+          title: m.title,
+        });
+        continue;
+      }
       if (kind === "photo") {
-        await axios.post(`https://api.telegram.org/bot${token}/sendPhoto`, {
+        await postTg("sendPhoto", {
           chat_id: chatId,
           photo: resolvedUrl,
           caption,
@@ -193,7 +241,7 @@ export class TelegramService {
         continue;
       }
       if (kind === "video") {
-        await axios.post(`https://api.telegram.org/bot${token}/sendVideo`, {
+        await postTg("sendVideo", {
           chat_id: chatId,
           video: resolvedUrl,
           caption,
@@ -201,7 +249,7 @@ export class TelegramService {
         continue;
       }
       if (kind === "voice") {
-        await axios.post(`https://api.telegram.org/bot${token}/sendVoice`, {
+        await postTg("sendVoice", {
           chat_id: chatId,
           voice: resolvedUrl,
           caption,
@@ -209,13 +257,13 @@ export class TelegramService {
         continue;
       }
       if (kind === "video_note") {
-        await axios.post(`https://api.telegram.org/bot${token}/sendVideoNote`, {
+        await postTg("sendVideoNote", {
           chat_id: chatId,
           video_note: resolvedUrl,
         });
         continue;
       }
-      await axios.post(`https://api.telegram.org/bot${token}/sendDocument`, {
+      await postTg("sendDocument", {
         chat_id: chatId,
         document: resolvedUrl,
         caption,

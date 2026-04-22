@@ -43,6 +43,8 @@ npm run migration:run
 npm run dev
 ```
 
+Для **голосовых в Telegram** (конвертация OGG→WAV) в `PATH` должен быть **`ffmpeg`** (на macOS: `brew install ffmpeg`). В Docker dev-образе `ffmpeg` уже в `Dockerfile.dev`.
+
 ## Start prod
 
 ```bash
