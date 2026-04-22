@@ -27,12 +27,12 @@ docker compose -f infra/docker-compose.yml up --build
 
 ```bash
 cp infra/.env.example infra/.env
-# В infra/.env выставьте TELEGRAM_UPDATES_MODE=polling (в dev-файле уже переопределено для api, но в .env можно продублировать)
+# dev-compose переопределяет порты: фронт http://localhost:3000, API http://localhost:3001 (и NEXT_PUBLIC для браузера).
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up --build
 ```
 
-- API: `nest start --watch`, код монтируется из `apps/api`, `node_modules` — в именованном volume.
-- Web: `next dev` на `0.0.0.0`, монтирование `apps/web`.
+- API: `nest start --watch`, порт на хосте **3001** (не `API_PUBLISH_PORT` из .env).
+- Web: `next dev` на **3000**, запросы к API из браузера на `localhost:3001`, из контейнера — на `http://api:3001`.
 - **Прод**: только `docker-compose.yml`, в `.env` — `TELEGRAM_UPDATES_MODE=webhook` и **`TELEGRAM_WEBHOOK_BASE_URL`** (публичный HTTPS без `/` в конце). После добавления бота в админке вызывается `setWebhook` на `{BASE}/telegram/webhook`; при деактивации — `deleteWebhook`. При старте API активные боты переподписываются на webhook.
 
 ## Белый экран во фронте (MUI + Next.js)
