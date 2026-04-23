@@ -6,6 +6,7 @@ import { AppModule } from "./app.module";
 import { setupSwagger } from "./swagger";
 import { HttpExceptionLoggingFilter } from "./common/http-exception.filter";
 import { logInfo } from "./common/logging";
+import { httpRequestDurationMs, httpRequestsTotal } from "./common/metrics";
 
 async function bootstrap() {
   const log = new Logger("HttpAccess");
@@ -38,12 +39,27 @@ async function bootstrap() {
       (res as { on: (event: string, cb: () => void) => void }).on(
         "finish",
         () => {
+          const pathWithoutQuery = path.split("?")[0] ?? path;
+          const status = Number(
+            (res as { statusCode?: number }).statusCode || 0,
+          );
+          const durationMs = Date.now() - startedAt;
+          const labels = {
+            method,
+            route: pathWithoutQuery,
+            status: String(status),
+          };
+          httpRequestsTotal.inc(labels);
+          httpRequestDurationMs.observe(labels, durationMs);
+
+          if (pathWithoutQuery === "/health" || pathWithoutQuery === "/metrics")
+            return;
           logInfo(log, "http_access", {
             requestId,
             method,
             path,
-            status: Number((res as { statusCode?: number }).statusCode || 0),
-            durationMs: Date.now() - startedAt,
+            status,
+            durationMs,
           });
         },
       );

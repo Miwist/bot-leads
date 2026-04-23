@@ -28,6 +28,11 @@ import {
   type PlanCode,
 } from "@/lib/ui";
 
+function formatBalanceRubFromKopecks(kopecks?: number | null) {
+  const k = Number(kopecks) || 0;
+  return formatRublesWithDecimals(k / 100);
+}
+
 export default function BillingPage() {
   const [data, setData] = useState<any>(null);
   const [message, setMessage] = useState("");
@@ -94,8 +99,23 @@ export default function BillingPage() {
         ),
       )
     : 0;
+  const leadsUsed = Number(data?.usage?.leadsUsed || 0);
+  const monthlyLeadLimit = Number(data?.plan?.monthlyLeadLimit || 100);
+  const leadsLeft = Math.max(0, monthlyLeadLimit - leadsUsed);
+  const usageState =
+    usagePercent >= 100
+      ? "limit_reached"
+      : usagePercent >= 85
+        ? "near_limit"
+        : "ok";
   const currentPlan = useMemo(() => getPlanDetails(data?.plan), [data?.plan]);
   const selected = getPlanDetails({ code: selectedCode });
+  const plansToRender = (
+    data?.plans?.length ? data.plans : PLAN_LIST
+  ) as Array<{
+    code: string;
+    monthlyLeadLimit: number;
+  }>;
   const totalPlanRub = selected.price * months;
   const discountPercent = Number(data?.discounts?.[months] || 0);
   const discountedTotalRub = Math.round(
@@ -185,9 +205,28 @@ export default function BillingPage() {
             {currentPlan.tagline}
           </Typography>
           <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.55)" }}>
-            Использовано {data?.usage?.leadsUsed ?? 0} /{" "}
-            {data?.plan?.monthlyLeadLimit ?? 100} заявок
+            Использовано {leadsUsed} / {monthlyLeadLimit} заявок ({usagePercent}
+            %)
           </Typography>
+          {usageState === "limit_reached" && (
+            <Alert severity="error">
+              Лимит заявок на этот месяц исчерпан. Новые заявки будут
+              создаваться только при наличии баланса сверх лимита.
+            </Alert>
+          )}
+          {usageState === "near_limit" && (
+            <Alert severity="warning">
+              До исчерпания лимита осталось {leadsLeft}{" "}
+              {leadsLeft % 10 === 1 && leadsLeft % 100 !== 11
+                ? "заявка"
+                : leadsLeft % 10 >= 2 &&
+                    leadsLeft % 10 <= 4 &&
+                    !(leadsLeft % 100 >= 12 && leadsLeft % 100 <= 14)
+                  ? "заявки"
+                  : "заявок"}
+              . Рекомендуем пополнить баланс заранее.
+            </Alert>
+          )}
           <Box
             component="ul"
             sx={{
@@ -216,8 +255,38 @@ export default function BillingPage() {
           <LinearProgress
             variant="determinate"
             value={usagePercent}
+            color={
+              usageState === "limit_reached"
+                ? "error"
+                : usageState === "near_limit"
+                  ? "warning"
+                  : "primary"
+            }
             sx={{ height: 8, borderRadius: 999 }}
           />
+        </Stack>
+      </Paper>
+
+      <Paper className="glass-card" sx={{ p: 2.5 }}>
+        <Stack spacing={0.75}>
+          <Typography
+            variant="subtitle2"
+            sx={{ color: "rgba(255,255,255,0.55)" }}
+          >
+            Баланс сверх лимита
+          </Typography>
+          <Typography sx={{ fontSize: 24, fontWeight: 700 }}>
+            {formatBalanceRubFromKopecks(data?.overageBalanceKopecks)} ₽
+          </Typography>
+          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.52)" }}>
+            После исчерпания месячного лимита списывается{" "}
+            {formatRublesWithDecimals(
+              typeof data?.overageRubPerLead === "number"
+                ? data.overageRubPerLead
+                : getOveragePrice(data?.plan),
+            )}{" "}
+            ₽ за каждую новую заявку.
+          </Typography>
         </Stack>
       </Paper>
 
@@ -336,7 +405,7 @@ export default function BillingPage() {
                 type="number"
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value)}
-                helperText="Без смены тарифа (например, доп. услуга или доплата)."
+                helperText="Зачисляется на баланс предоплаты за заявки сверх лимита (тариф не меняется)."
               />
             </Stack>
           )}
@@ -349,6 +418,24 @@ export default function BillingPage() {
           >
             Перейти к оплате в ЮKassa
           </Button>
+          <Typography
+            variant="caption"
+            sx={{ color: "rgba(255,255,255,0.48)", display: "block", mt: 1.25 }}
+          >
+            Оплачивая тариф, вы принимаете{" "}
+            <Link href="/offer" style={{ color: "inherit" }}>
+              оферту
+            </Link>
+            ,{" "}
+            <Link href="/terms" style={{ color: "inherit" }}>
+              условия использования
+            </Link>{" "}
+            и{" "}
+            <Link href="/privacy" style={{ color: "inherit" }}>
+              политику обработки данных
+            </Link>
+            .
+          </Typography>
         </Paper>
 
         <Paper className="glass-card span-5" sx={{ p: 2.5 }}>
@@ -356,7 +443,7 @@ export default function BillingPage() {
             Все тарифы
           </Typography>
           <Stack spacing={1.25}>
-            {(data?.plans || []).map(
+            {plansToRender.map(
               (plan: { code: string; monthlyLeadLimit: number }) => {
                 const d = getPlanDetails(plan);
                 return (

@@ -384,9 +384,7 @@ export default function OnboardingPage() {
               <Button
                 size="small"
                 variant="outlined"
-                disabled={
-                  busy || aiAction !== null || !welcomeMessage.trim()
-                }
+                disabled={busy || aiAction !== null || !welcomeMessage.trim()}
                 onClick={() => void refineWelcome()}
                 startIcon={
                   aiAction === "refine" ? (
@@ -422,7 +420,7 @@ export default function OnboardingPage() {
         <Paper className="glass-card" sx={{ p: 2.5 }}>
           <Stack spacing={2}>
             <Typography variant="subtitle1" sx={{ fontWeight: 650 }}>
-              Что собирать у лида
+              Что собирать по заявке
             </Typography>
             <Typography
               variant="caption"

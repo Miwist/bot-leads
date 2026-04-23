@@ -33,7 +33,36 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up --
 
 - API: `nest start --watch`, порт на хосте **3001** (не `API_PUBLISH_PORT` из .env).
 - Web: `next dev` на **3000**, запросы к API из браузера на `localhost:3001`, из контейнера — на `http://api:3001`.
-- **Прод**: только `docker-compose.yml`, в `.env` — `TELEGRAM_UPDATES_MODE=webhook` и **`TELEGRAM_WEBHOOK_BASE_URL`** (публичный HTTPS без `/` в конце). После добавления бота в админке вызывается `setWebhook` на `{BASE}/telegram/webhook`; при деактивации — `deleteWebhook`. При старте API активные боты переподписываются на webhook.
+- **Прод**: только `docker-compose.yml`. Общий бот (`companyId="__shared__"`) всегда работает через polling, даже если выбран webhook-режим. Для кастомных ботов в `.env` можно оставить `TELEGRAM_UPDATES_MODE=webhook` и `TELEGRAM_WEBHOOK_BASE_URL` (публичный HTTPS без `/` в конце): тогда при добавлении вызывается `setWebhook` на `{BASE}/telegram/webhook`, при деактивации — `deleteWebhook`.
+
+## Метрики и логи (локально в проекте)
+
+В `infra/docker-compose.yml` добавлены сервисы мониторинга:
+
+- **Grafana** (UI) — `http://localhost:${GRAFANA_PUBLISH_PORT}` (по умолчанию `http://localhost:3060`)
+- **Prometheus** (метрики) — `http://localhost:${PROMETHEUS_PUBLISH_PORT}` (по умолчанию `9090`)
+- **Loki** (хранилище логов) — `http://localhost:${LOKI_PUBLISH_PORT}` (по умолчанию `3100`)
+- **Promtail** (сбор логов Docker-контейнеров в Loki)
+
+Логин/пароль в Grafana задаются в `infra/.env`:
+
+```bash
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
+```
+
+### Как запустить
+
+```bash
+cp infra/.env.example infra/.env
+docker compose -f infra/docker-compose.yml up --build
+```
+
+### Где смотреть
+
+- **Grafana**: Explore -> datasource `Loki` для логов контейнеров (`compose_service="api"`, `compose_service="web"` и т.д.)
+- **Grafana**: Dashboards/Explore -> datasource `Prometheus` для метрик API
+- **API метрики** доступны по `GET /metrics` (в compose это `http://localhost:${API_PUBLISH_PORT}/metrics`)
 
 ## Белый экран во фронте (MUI + Next.js)
 
@@ -81,7 +110,7 @@ npm run format:check
 - JWT auth: register/login/me
 - Companies, Managers CRUD
 - Подключение bot token через Telegram getMe
-- Telegram: режим **webhook** (прод) или **polling** (Docker dev); ответы пользователю через **sendMessage**
+- Telegram: общий бот всегда в **polling**; для кастомных ботов доступен **webhook**; ответы пользователю через **sendMessage**
 - Endpoint `/telegram/webhook` для Telegram в режиме webhook (`X-Telegram-Bot-Api-Secret-Token`)
 - Диалог Telegram (start -> name -> phone -> need) и создание заявки
 - Round-robin назначение заявки активному менеджеру

@@ -10,16 +10,31 @@ import {
   Company,
   Plan,
   Subscription,
+  User,
   UsageCounter,
 } from "../../database/entities";
 import { Repository } from "typeorm";
 import { YooKassaService } from "./yookassa.service";
+import { MailerService } from "../../common/mailer.service";
+import { AdminTelegramService } from "../../common/admin-telegram.service";
 
 const PLAN_MONTHLY_PRICE_RUB: Record<string, number> = {
   starter: 499,
   growth: 1299,
   pro: 3299,
 };
+
+/** Цена одной заявки сверх лимита, коп. (как price/limit на фронте, округление до целых копеек). */
+function computeOverageKopecksPerLead(
+  planCode: string,
+  monthlyLeadLimit: number,
+): number {
+  const code = String(planCode || "starter").toLowerCase();
+  const priceRub =
+    PLAN_MONTHLY_PRICE_RUB[code] ?? PLAN_MONTHLY_PRICE_RUB.starter;
+  const lim = Math.max(1, Math.floor(monthlyLeadLimit));
+  return Math.round((priceRub * 100) / lim);
+}
 
 @Injectable()
 export class BillingService {
@@ -38,7 +53,10 @@ export class BillingService {
     @InjectRepository(UsageCounter) private usage: Repository<UsageCounter>,
     @InjectRepository(BillingPayment)
     private payments: Repository<BillingPayment>,
+    @InjectRepository(User) private users: Repository<User>,
     private readonly yookassa: YooKassaService,
+    private readonly mailer: MailerService,
+    private readonly adminTelegram: AdminTelegramService,
   ) {
     this.yookassa.logMissingConfig();
   }
@@ -63,11 +81,21 @@ export class BillingService {
     const createdAt = company?.createdAt || sub.createdAt;
     const trialEndsAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
     const trialActive = !paid && Date.now() < trialEndsAt.getTime();
+    const overageBalanceKopecks = company?.overageBalanceKopecks ?? 0;
+    const monthlyLeadLimit = plan?.monthlyLeadLimit ?? 100;
+    const overageKopecksPerLead = computeOverageKopecksPerLead(
+      sub.planCode,
+      monthlyLeadLimit,
+    );
     return {
       plan,
       usage,
       subscription: sub,
       plans,
+      overageBalanceKopecks,
+      overageBalanceRub: overageBalanceKopecks / 100,
+      overageKopecksPerLead,
+      overageRubPerLead: overageKopecksPerLead / 100,
       trial: {
         active: trialActive,
         days: 7,
@@ -245,28 +273,131 @@ export class BillingService {
       return { ok: true };
     }
 
-    await this.payments.update({ id: payment.id }, { status: "succeeded" });
+    const markPaid = await this.payments.update(
+      { id: payment.id, status: "pending" },
+      { status: "succeeded" },
+    );
+    if (!markPaid.affected) {
+      return { ok: true };
+    }
 
     const meta = (obj.metadata || {}) as Record<string, string>;
     const planFromMeta = meta.planCode?.trim();
     if (planFromMeta && payment.companyId) {
       await this.changePlan(payment.companyId, planFromMeta);
+    } else if (
+      !payment.planCode &&
+      payment.months == null &&
+      payment.companyId
+    ) {
+      const rub = Number.parseFloat(String(payment.amountRub || "0"));
+      const addK = Number.isFinite(rub) ? Math.round(rub * 100) : 0;
+      if (addK > 0) {
+        await this.companies.increment(
+          { id: payment.companyId },
+          "overageBalanceKopecks",
+          addK,
+        );
+      }
     }
+
+    const owner = await this.users.findOne({
+      where: { companyId: payment.companyId, role: "owner" },
+      order: { createdAt: "ASC" },
+    });
+    if (owner?.email) {
+      await this.mailer.sendPaymentReceiptEmail(owner.email, {
+        amountRub: payment.amountRub,
+        currency: payment.currency,
+        description: payment.description || "Оплата тарифа",
+        paymentId: payment.id,
+        paidAtIso: new Date().toISOString(),
+      });
+    }
+    await this.adminTelegram.notify(
+      `Оплата тарифа\nКомпания: ${payment.companyId}\nСумма: ${payment.amountRub} ${payment.currency}\nПлатёж: ${payment.id}\nСтатус: succeeded`,
+    );
 
     return { ok: true };
   }
 
   async canCreateLead(companyId: string) {
     const x = await this.current(companyId);
-    return x.usage.leadsUsed < (x.plan?.monthlyLeadLimit || 100);
+    const limit = x.plan?.monthlyLeadLimit ?? 100;
+    if (x.usage.leadsUsed < limit) return true;
+    const bal = x.overageBalanceKopecks ?? 0;
+    const need = x.overageKopecksPerLead ?? 0;
+    return bal >= need;
   }
 
-  async incrementLead(companyId: string) {
-    const monthKey = new Date().toISOString().slice(0, 7);
-    const usage =
-      (await this.usage.findOne({ where: { companyId, monthKey } })) ||
-      this.usage.create({ companyId, monthKey });
-    usage.leadsUsed += 1;
-    await this.usage.save(usage);
+  async incrementLead(
+    companyId: string,
+  ): Promise<{ monthKey: string; chargedKopecks: number }> {
+    return this.companies.manager.transaction(async (mgr) => {
+      const monthKey = new Date().toISOString().slice(0, 7);
+      const usageRepo = mgr.getRepository(UsageCounter);
+      const companyRepo = mgr.getRepository(Company);
+      const subRepo = mgr.getRepository(Subscription);
+      const planRepo = mgr.getRepository(Plan);
+      let chargedKopecks = 0;
+      let row =
+        (await usageRepo.findOne({ where: { companyId, monthKey } })) ||
+        usageRepo.create({ companyId, monthKey, leadsUsed: 0, dialogsUsed: 0 });
+      const company = await companyRepo.findOne({
+        where: { id: companyId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!company) {
+        this.log.warn(`incrementLead: company ${companyId} not found`);
+        throw new NotFoundException("Компания не найдена");
+      }
+      const sub =
+        (await subRepo.findOne({ where: { companyId, isActive: true } })) ||
+        (await subRepo.findOne({ where: { companyId } }));
+      const planCode = sub?.planCode || "starter";
+      const plan = await planRepo.findOne({ where: { code: planCode } });
+      const limit = plan?.monthlyLeadLimit ?? 100;
+      if (row.leadsUsed >= limit) {
+        const need = computeOverageKopecksPerLead(planCode, limit);
+        if (company.overageBalanceKopecks < need) {
+          throw new BadRequestException(
+            "Недостаточно предоплаты за заявку сверх лимита тарифа",
+          );
+        }
+        company.overageBalanceKopecks -= need;
+        chargedKopecks = need;
+        await companyRepo.save(company);
+      }
+      row.leadsUsed += 1;
+      await usageRepo.save(row);
+      return { monthKey, chargedKopecks };
+    });
+  }
+
+  async rollbackIncrementLead(
+    companyId: string,
+    accounting: { monthKey: string; chargedKopecks: number },
+  ) {
+    await this.companies.manager.transaction(async (mgr) => {
+      const usageRepo = mgr.getRepository(UsageCounter);
+      const companyRepo = mgr.getRepository(Company);
+      const row = await usageRepo.findOne({
+        where: { companyId, monthKey: accounting.monthKey },
+      });
+      if (row && row.leadsUsed > 0) {
+        row.leadsUsed -= 1;
+        await usageRepo.save(row);
+      }
+      if (accounting.chargedKopecks > 0) {
+        const company = await companyRepo.findOne({
+          where: { id: companyId },
+          lock: { mode: "pessimistic_write" },
+        });
+        if (company) {
+          company.overageBalanceKopecks += accounting.chargedKopecks;
+          await companyRepo.save(company);
+        }
+      }
+    });
   }
 }

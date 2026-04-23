@@ -64,6 +64,33 @@ export class TelegramService {
     return raw.replace(/^[?=]+/, "");
   }
 
+  private isMyInfoCommand(text: string): boolean {
+    const cmd = String(text || "")
+      .trim()
+      .toLowerCase();
+    return /^\/(getmyinfo|myid|id)(?:@\w+)?$/.test(cmd);
+  }
+
+  private buildMyInfoText(input: {
+    fromId: number;
+    chatId: number;
+    username?: string;
+    firstName?: string;
+  }): string {
+    const lines = [
+      "Ваши данные Telegram:",
+      `• user_id: ${input.fromId}`,
+      `• chat_id: ${input.chatId}`,
+    ];
+    if (input.username) lines.push(`• username: @${input.username}`);
+    if (input.firstName) lines.push(`• имя: ${input.firstName}`);
+    lines.push("");
+    lines.push(
+      "Скопируйте chat_id и вставьте его в настройках кабинета в поле «Telegram ID».",
+    );
+    return lines.join("\n");
+  }
+
   private async getCompanyByStartPayload(payload: string) {
     if (!payload) return null;
     const byId = await this.companies.findOne({
@@ -127,7 +154,97 @@ export class TelegramService {
   }
 
   private tgCaption(text: string) {
-    return String(text || "").trim().slice(0, 1024);
+    return String(text || "")
+      .trim()
+      .slice(0, 1024);
+  }
+
+  private extractTelegramErrorDescription(error: unknown) {
+    if (!axios.isAxiosError(error)) return "";
+    const data = error.response?.data as { description?: unknown } | undefined;
+    return String(data?.description || error.message || "").trim();
+  }
+
+  private shouldFallbackToMultipart(error: unknown) {
+    const text = this.extractTelegramErrorDescription(error).toLowerCase();
+    if (!text) return false;
+    return [
+      "failed to get http url content",
+      "wrong file identifier/http url specified",
+      "wrong type of the web page content",
+      "webpage_curl_failed",
+      "download failed",
+      "wrong file_id or the file is temporarily unavailable",
+    ].some((mark) => text.includes(mark));
+  }
+
+  private async downloadMaterial(
+    url: string,
+    opts?: { maxBytes?: number },
+  ): Promise<Buffer> {
+    const maxBytes = opts?.maxBytes ?? 45 * 1024 * 1024;
+    const res = await axios.get<ArrayBuffer>(url, {
+      responseType: "arraybuffer",
+      timeout: 30000,
+      maxContentLength: maxBytes,
+      maxBodyLength: maxBytes,
+      validateStatus: (status) => status >= 200 && status < 300,
+    });
+    const bytes = Buffer.from(res.data);
+    if (bytes.length > maxBytes) {
+      throw new Error(`material_too_large:${bytes.length}`);
+    }
+    return bytes;
+  }
+
+  private async postTgMultipart(
+    token: string,
+    method: string,
+    fields: Record<string, string>,
+    file: {
+      fieldName: string;
+      fileName: string;
+      mime: string;
+      bytes: Buffer;
+    },
+  ): Promise<void> {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    form.append(
+      file.fieldName,
+      new Blob([new Uint8Array(file.bytes)], {
+        type: file.mime || "application/octet-stream",
+      }),
+      file.fileName || "file",
+    );
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/${method}`,
+      {
+        method: "POST",
+        body: form,
+      },
+    );
+    const data = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      description?: string;
+    } | null;
+    if (!response.ok || !data?.ok) {
+      throw new Error(
+        `telegram_multipart_failed:${response.status}:${String(data?.description || "request_error")}`,
+      );
+    }
+  }
+
+  private getSendMethodByKind(kind: string): {
+    method: string;
+    mediaField: string;
+  } {
+    if (kind === "photo") return { method: "sendPhoto", mediaField: "photo" };
+    if (kind === "video") return { method: "sendVideo", mediaField: "video" };
+    if (kind === "voice") return { method: "sendVoice", mediaField: "voice" };
+    if (kind === "video_note")
+      return { method: "sendVideoNote", mediaField: "video_note" };
+    return { method: "sendDocument", mediaField: "document" };
   }
 
   private resolveMaterialUrl(item: { url?: string; key?: string }) {
@@ -195,6 +312,62 @@ export class TelegramService {
       }
     };
 
+    const sendSingle = async (m: (typeof valid)[number]) => {
+      const kind = this.inferMaterialKind(m);
+      const caption = this.tgCaption(m.title || "");
+      const resolvedUrl = this.resolveMaterialUrl(m);
+      if (resolvedUrl.startsWith("data:")) {
+        logWarn(this.log, "telegram_material_skip_data_url", {
+          botId: bot.id,
+          title: m.title,
+        });
+        return;
+      }
+      const { method, mediaField } = this.getSendMethodByKind(kind);
+      const body: Record<string, unknown> = {
+        chat_id: chatId,
+        [mediaField]: resolvedUrl,
+      };
+      if (caption && method !== "sendVideoNote") body.caption = caption;
+      try {
+        await postTg(method, body);
+        return;
+      } catch (e) {
+        if (!this.shouldFallbackToMultipart(e)) throw e;
+      }
+      try {
+        const bytes = await this.downloadMaterial(resolvedUrl);
+        await this.postTgMultipart(
+          token,
+          method,
+          {
+            chat_id: String(chatId),
+            ...(caption && method !== "sendVideoNote" ? { caption } : {}),
+          },
+          {
+            fieldName: mediaField,
+            fileName: String(m.fileName || m.title || "material"),
+            mime: String(m.mime || "application/octet-stream"),
+            bytes,
+          },
+        );
+        logInfo(this.log, "telegram_material_fallback_multipart", {
+          botId: bot.id,
+          method,
+          title: m.title || null,
+        });
+      } catch (uploadError) {
+        logError(this.log, "telegram_send_material_multipart_failed", {
+          botId: bot.id,
+          method,
+          title: m.title || null,
+          message:
+            uploadError instanceof Error ? uploadError.message : "upload_error",
+        });
+        throw uploadError;
+      }
+    };
+
     for (const [gid, rows] of groups.entries()) {
       const media = rows
         .map((m) => {
@@ -216,56 +389,23 @@ export class TelegramService {
         })
         .filter(Boolean);
       if (!media.length) continue;
-      await postTg("sendMediaGroup", { chat_id: chatId, media });
-    }
-    for (const m of singles) {
-      const kind = this.inferMaterialKind(m);
-      const caption = this.tgCaption(m.title || "");
-      const resolvedUrl = this.resolveMaterialUrl(m);
-      if (resolvedUrl.startsWith("data:")) {
-        logWarn(this.log, "telegram_material_skip_data_url", {
+      try {
+        await postTg("sendMediaGroup", { chat_id: chatId, media });
+      } catch (e) {
+        // If group by URL fails (Telegram can't fetch source), send items one-by-one with multipart fallback.
+        if (!this.shouldFallbackToMultipart(e)) throw e;
+        logWarn(this.log, "telegram_media_group_fallback_singles", {
           botId: bot.id,
-          title: m.title,
+          groupId: gid,
+          count: rows.length,
+          reason: this.extractTelegramErrorDescription(e),
         });
-        continue;
+        for (const row of rows) {
+          await sendSingle(row);
+        }
       }
-      if (kind === "photo") {
-        await postTg("sendPhoto", {
-          chat_id: chatId,
-          photo: resolvedUrl,
-          caption,
-        });
-        continue;
-      }
-      if (kind === "video") {
-        await postTg("sendVideo", {
-          chat_id: chatId,
-          video: resolvedUrl,
-          caption,
-        });
-        continue;
-      }
-      if (kind === "voice") {
-        await postTg("sendVoice", {
-          chat_id: chatId,
-          voice: resolvedUrl,
-          caption,
-        });
-        continue;
-      }
-      if (kind === "video_note") {
-        await postTg("sendVideoNote", {
-          chat_id: chatId,
-          video_note: resolvedUrl,
-        });
-        continue;
-      }
-      await postTg("sendDocument", {
-        chat_id: chatId,
-        document: resolvedUrl,
-        caption,
-      });
     }
+    for (const m of singles) await sendSingle(m);
   }
 
   private companyChoiceButtonLabel(c: Company) {
@@ -358,6 +498,46 @@ export class TelegramService {
     );
   }
 
+  private consentPolicyUrl() {
+    const base = String(process.env.WEB_PUBLIC_URL || "")
+      .trim()
+      .replace(/\/+$/g, "");
+    return base ? `${base}/privacy` : "";
+  }
+
+  private consentKeyboard() {
+    const policyUrl = this.consentPolicyUrl();
+    const row: Array<{ text: string; callback_data?: string; url?: string }> = [
+      { text: "Согласен(на)", callback_data: "consent:yes" },
+      { text: "Не согласен(на)", callback_data: "consent:no" },
+    ];
+    if (policyUrl) {
+      row.push({ text: "Политика обработки данных", url: policyUrl });
+    }
+    return { inline_keyboard: [row] };
+  }
+
+  private async askConsent(
+    bot: BotConnection,
+    chatId: number,
+    companyName?: string,
+  ) {
+    const target = companyName ? ` для компании «${companyName}»` : "";
+    const policyUrl =
+      this.consentPolicyUrl() ?? "https://ai.ventaria.ru/privacy";
+    const policyLine = `Политика обработки данных: ${policyUrl}`;
+    await this.sendChatMessage(
+      bot,
+      chatId,
+      [
+        `Чтобы продолжить диалог${target}, нужно ваше согласие на обработку персональных данных.`,
+        "Нажимая «Согласен(на)», вы подтверждаете согласие на обработку переданных данных для связи по заявке.",
+        policyLine,
+      ].join("\n\n"),
+      this.consentKeyboard(),
+    );
+  }
+
   private async clearKeyboard(bot: BotConnection, chatId: number) {
     await this.sendChatMessage(bot, chatId, "Принято.", {
       remove_keyboard: true,
@@ -445,11 +625,43 @@ export class TelegramService {
         }),
       );
     };
+    const sendWithMarkup = async (
+      replyText: string,
+      replyMarkup: Record<string, unknown>,
+    ) => {
+      await this.sendChatMessage(bot, chatId, replyText, replyMarkup);
+      await this.messages.save(
+        this.messages.create({
+          conversationId: c.id,
+          companyId: c.companyId,
+          role: "assistant",
+          text: replyText,
+          attachments: [],
+        }),
+      );
+    };
 
     const rawText =
       typeof userMsg?.text === "string" ? userMsg.text.trim() : "";
     const caption =
       typeof userMsg?.caption === "string" ? userMsg.caption.trim() : "";
+
+    if (this.isMyInfoCommand(rawText)) {
+      await this.sendChatMessage(
+        bot,
+        chatId,
+        this.buildMyInfoText({
+          fromId,
+          chatId,
+          username:
+            (fromRaw as { username?: string } | undefined)?.username || "",
+          firstName:
+            (fromRaw as { first_name?: string } | undefined)?.first_name || "",
+        }),
+      );
+      return;
+    }
+
     const userTextResolved = await this.resolveTelegramMultimodalUserText(
       bot,
       (userMsg || {}) as Record<string, unknown>,
@@ -525,11 +737,15 @@ export class TelegramService {
         await send("Компания не найдена, попробуйте ещё раз.");
         return;
       }
-      c.context = { ...ctx, targetCompanyId: company.id };
+      c.context = {
+        ...ctx,
+        targetCompanyId: company.id,
+        pdConsentAccepted: false,
+      };
       c.companyId = company.id;
-      c.state = "ASK_NAME";
+      c.state = "ASK_CONSENT";
       await this.conv.save(c);
-      await send(`Вы выбрали компанию «${company.name}». Как вас зовут?`);
+      await this.askConsent(bot, chatId, company.name);
       return;
     }
 
@@ -554,11 +770,16 @@ export class TelegramService {
       if (this.isSharedBot(bot)) {
         const company = await this.getCompanyByStartPayload(payload);
         if (company) {
-          c.state = "ASK_NAME";
+          c.state = "ASK_CONSENT";
           c.companyId = company.id;
-          c.context = { ...ctx, targetCompanyId: company.id, chatId };
+          c.context = {
+            ...ctx,
+            targetCompanyId: company.id,
+            chatId,
+            pdConsentAccepted: false,
+          };
           await this.conv.save(c);
-          await send(`Вы выбрали компанию «${company.name}». Как вас зовут?`);
+          await this.askConsent(bot, chatId, company.name);
           return;
         }
         c.state = "PICK_COMPANY";
@@ -569,9 +790,14 @@ export class TelegramService {
         );
         return;
       }
-      c.state = "ASK_NAME";
+      c.state = "ASK_CONSENT";
       c.companyId = bot.companyId;
-      c.context = { ...ctx, targetCompanyId: bot.companyId, chatId };
+      c.context = {
+        ...ctx,
+        targetCompanyId: bot.companyId,
+        chatId,
+        pdConsentAccepted: false,
+      };
       await this.conv.save(c);
       const ownCompany = await this.companies.findOne({
         where: { id: bot.companyId, isActive: true },
@@ -579,12 +805,17 @@ export class TelegramService {
       const customWelcome = ownCompany?.welcomeMessage?.trim();
       if (customWelcome) {
         await send(customWelcome);
+        await this.askConsent(bot, chatId, ownCompany?.name || undefined);
         return;
       }
-      const ar = await aiReply("ASK_NAME", {
+      const ar = await aiReply("ASK_CONSENT", {
         targetCompanyId: bot.companyId,
       });
-      await send(ar ?? "Здравствуйте! Как вас зовут?");
+      await send(
+        ar ??
+          "Здравствуйте! Прежде чем продолжить, подтвержу согласие на обработку данных.",
+      );
+      await this.askConsent(bot, chatId, ownCompany?.name || undefined);
       return;
     }
 
@@ -621,6 +852,64 @@ export class TelegramService {
         groupId?: string | null;
       }>) || []
     ).filter((x) => x.url);
+    if (callbackData === "consent:yes") {
+      if (cb?.id && typeof cb.id === "string") {
+        await this.answerCallback(bot, cb.id);
+      }
+      c.context = { ...ctx, pdConsentAccepted: true };
+      c.state = "ASK_NAME";
+      await this.conv.save(c);
+      await send("Спасибо! Согласие принято. Как вас зовут?");
+      return;
+    }
+    if (callbackData === "consent:no") {
+      if (cb?.id && typeof cb.id === "string") {
+        await this.answerCallback(bot, cb.id);
+      }
+      c.context = { ...ctx, pdConsentAccepted: false };
+      c.state = "CONSENT_DECLINED";
+      await this.conv.save(c);
+      await send(
+        "Понял(а). Без согласия не могу собирать контактные данные. Если передумаете, отправьте /start.",
+      );
+      return;
+    }
+    if (
+      c.state !== "PICK_COMPANY" &&
+      c.state !== "ASK_CONSENT" &&
+      c.state !== "CONSENT_DECLINED" &&
+      !Boolean((ctx as Record<string, unknown>).pdConsentAccepted)
+    ) {
+      c.state = "ASK_CONSENT";
+      await this.conv.save(c);
+      await this.askConsent(
+        bot,
+        chatId,
+        currentCompany?.name ? String(currentCompany.name) : undefined,
+      );
+      return;
+    }
+    const materialsKeyboard = {
+      inline_keyboard: [
+        [{ text: "Показать материалы", callback_data: "mat:send" }],
+      ],
+    };
+    if (callbackData === "mat:send") {
+      if (cb?.id && typeof cb.id === "string") {
+        await this.answerCallback(bot, cb.id);
+      }
+      if (!materials.length) {
+        await send(
+          "Сейчас в настройках компании нет материалов. Могу продолжить диалог и помочь с заявкой.",
+        );
+        return;
+      }
+      await this.sendCompanyMaterials(bot, chatId, materials);
+      c.context = { ...ctx, askMaterialsConfirm: false };
+      await this.conv.save(c);
+      await send("Готово, отправил(а) материалы в этот чат.");
+      return;
+    }
     const ctxAskMaterials = Boolean(
       (ctx as Record<string, unknown>).askMaterialsConfirm,
     );
@@ -638,13 +927,52 @@ export class TelegramService {
       return;
     }
     const asksForMaterials =
-      /(меню|каталог|прайс|видео|фото|материал|пример|портфолио)/i.test(
+      /(меню|каталог|прайс|видео|фото|материал|пример|портфолио|файл|файлы|документ|документы|скинь|пришли|отправь)/i.test(
         userTextForFlow,
       );
-    if (materials.length && asksForMaterials && !ctxAskMaterials) {
-      c.context = { ...ctx, askMaterialsConfirm: true };
+    if (asksForMaterials) {
+      if (!currentCompanyId && this.isSharedBot(bot)) {
+        await send(
+          "Чтобы отправить материалы, сначала выберите компанию: напишите ее название.",
+        );
+        return;
+      }
+      if (!materials.length) {
+        await send(
+          "Пока не вижу материалов в настройках компании. Могу помочь оформить заявку или уточнить ваш запрос.",
+        );
+        return;
+      }
+      await this.sendCompanyMaterials(bot, chatId, materials);
+      c.context = { ...ctx, askMaterialsConfirm: false };
       await this.conv.save(c);
-      await send("Могу отправить материалы компании. Отправить сейчас?");
+      if (c.state === "ASK_NAME") {
+        await send(
+          "Материалы отправил(а). Если удобно, подскажите, как к вам обращаться?",
+        );
+        return;
+      }
+      if (c.state === "ASK_PHONE") {
+        await sendWithMarkup(
+          "Материалы отправил(а). Если хотите продолжить, напишите номер телефона или поделитесь контактом кнопкой.",
+          {
+            keyboard: [[{ text: "Отправить контакт", request_contact: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        );
+        return;
+      }
+      await send("Материалы отправил(а) в этот чат.");
+      return;
+    }
+
+    if (c.state === "ASK_CONSENT") {
+      await this.askConsent(
+        bot,
+        chatId,
+        currentCompany?.name ? String(currentCompany.name) : undefined,
+      );
       return;
     }
 
@@ -679,10 +1007,15 @@ export class TelegramService {
         "ASK_NEED",
         c.context as Record<string, unknown>,
       );
-      const tail = materials.length
-        ? "\nЕсли хотите, могу сразу отправить меню/каталог и примеры."
-        : "";
-      await send((ar ?? "Подскажите, с каким вопросом помочь?") + tail);
+      if (materials.length) {
+        await sendWithMarkup(
+          (ar ?? "Подскажите, с каким вопросом помочь?") +
+            "\nЕсли нужно, могу показать материалы компании.",
+          materialsKeyboard,
+        );
+      } else {
+        await send(ar ?? "Подскажите, с каким вопросом помочь?");
+      }
       return;
     }
     if (c.state === "ASK_NEED") {
@@ -703,26 +1036,33 @@ export class TelegramService {
       }
       const can = await this.billing.canCreateLead(targetCompanyId);
       if (!can) {
-        await send("Лимит заявок на тарифе исчерпан. Попробуйте позже.");
+        await send(
+          "Лимит заявок на тарифе исчерпан. Владелец может пополнить предоплату в кабинете: Тарифы → произвольная сумма, либо дождаться следующего месяца.",
+        );
         return;
       }
       const existingLead = await this.leads.getByConversationId(c.id);
       if (!existingLead) {
-        await this.leads.createLead({
-          companyId: targetCompanyId,
-          conversationId: c.id,
-          fullName: String(
-            (c.context as Record<string, unknown>).name || "Unknown",
-          ),
-          phone: String((c.context as Record<string, unknown>).phone || ""),
-          need: userTextForFlow,
-          source: "telegram_bot",
-          details: {
-            telegramUserId: String(fromId),
-            botConnectionId: bot.id,
-          },
-        });
-        await this.billing.incrementLead(targetCompanyId);
+        const accounting = await this.billing.incrementLead(targetCompanyId);
+        try {
+          await this.leads.createLead({
+            companyId: targetCompanyId,
+            conversationId: c.id,
+            fullName: String(
+              (c.context as Record<string, unknown>).name || "Unknown",
+            ),
+            phone: String((c.context as Record<string, unknown>).phone || ""),
+            need: userTextForFlow,
+            source: "telegram_bot",
+            details: {
+              telegramUserId: String(fromId),
+              botConnectionId: bot.id,
+            },
+          });
+        } catch (err) {
+          await this.billing.rollbackIncrementLead(targetCompanyId, accounting);
+          throw err;
+        }
         logInfo(this.log, "lead_created_from_telegram", {
           botId: bot.id,
           companyId: targetCompanyId,
@@ -763,6 +1103,12 @@ export class TelegramService {
           "Понял вас. Если хотите, могу оформить еще одну заявку: просто напишите «новая заявка».",
       );
     }
+    if (c.state === "CONSENT_DECLINED") {
+      await send(
+        "Если захотите вернуться к диалогу, отправьте /start и подтвердите согласие на обработку данных.",
+      );
+      return;
+    }
   }
 
   private billingCompanyForMultimodal(
@@ -785,10 +1131,11 @@ export class TelegramService {
   ): Promise<Buffer | null> {
     try {
       const token = this.encryption.decrypt(bot.tokenEncrypted);
-      const meta = await axios.get<{ result?: { file_path?: string; file_size?: number } }>(
-        `https://api.telegram.org/bot${token}/getFile`,
-        { params: { file_id: fileId } },
-      );
+      const meta = await axios.get<{
+        result?: { file_path?: string; file_size?: number };
+      }>(`https://api.telegram.org/bot${token}/getFile`, {
+        params: { file_id: fileId },
+      });
       const fp = meta.data?.result?.file_path;
       const sz = meta.data?.result?.file_size;
       if (!fp) return null;
@@ -836,9 +1183,7 @@ export class TelegramService {
   private async extractPdfPlainText(buf: Buffer): Promise<string> {
     try {
       const mod = await import("pdf-parse");
-      const pdfParse = mod.default as (
-        b: Buffer,
-      ) => Promise<{ text?: string }>;
+      const pdfParse = mod.default as (b: Buffer) => Promise<{ text?: string }>;
       const res = await pdfParse(buf);
       return String(res?.text || "").trim();
     } catch {
@@ -897,8 +1242,7 @@ export class TelegramService {
     const photoId = largestPhoto?.file_id;
     const docMime = String(doc?.mime_type || "").toLowerCase();
     const docName = String(doc?.file_name || "").toLowerCase();
-    const isPdf =
-      docMime === "application/pdf" || docName.endsWith(".pdf");
+    const isPdf = docMime === "application/pdf" || docName.endsWith(".pdf");
     const isImageDoc =
       docMime.startsWith("image/") &&
       (docMime === "image/jpeg" ||
@@ -910,12 +1254,7 @@ export class TelegramService {
     const unsupportedDoc =
       doc?.file_id && !isPdf && !isImageDoc ? doc.file_id : undefined;
 
-    if (
-      !audioFileId &&
-      !photoId &&
-      !docId &&
-      !unsupportedDoc
-    ) {
+    if (!audioFileId && !photoId && !docId && !unsupportedDoc) {
       return base;
     }
 
@@ -993,10 +1332,7 @@ export class TelegramService {
         return null;
       }
       const hint = caption || rawText || "";
-      const summary = await this.timewebAi.summarizePdfExtract(
-        extracted,
-        hint,
-      );
+      const summary = await this.timewebAi.summarizePdfExtract(extracted, hint);
       if (summary) pieces.push(`[PDF] ${summary}`);
     } else if (docId && isImageDoc) {
       const buf = await this.downloadTelegramFile(bot, docId);
@@ -1040,10 +1376,22 @@ export class TelegramService {
         ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       });
     } catch (e) {
+      const ax = axios.isAxiosError(e) ? e : null;
+      const data = (ax?.response?.data || {}) as {
+        description?: string;
+        error_code?: number;
+        parameters?: { retry_after?: number };
+      };
       logError(this.log, "telegram_send_message_failed", {
         botId: bot.id,
         chatId,
-        message: e instanceof Error ? e.message : "telegram_send_error",
+        message:
+          ax?.message ||
+          (e instanceof Error ? e.message : "telegram_send_error"),
+        status: ax?.response?.status || null,
+        errorCode: data.error_code || null,
+        description: data.description || null,
+        retryAfter: data.parameters?.retry_after || null,
       });
     }
   }

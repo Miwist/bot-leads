@@ -60,6 +60,16 @@ export class TimewebAiService {
     const instruction = String(
       input.companyProfile?.assistantInstruction || "",
     ).trim();
+    const stateGuide =
+      input.state === "ASK_NAME"
+        ? "Сейчас можно только вежливо попросить имя клиента. Не проси телефон, адрес или иные данные."
+        : input.state === "ASK_PHONE"
+          ? "Сейчас можно только попросить номер телефона или попросить отправить контакт. Не обещай отправку материалов на телефон."
+          : input.state === "ASK_NEED"
+            ? "Сейчас можно уточнить потребность клиента и кратко предложить помощь по задаче."
+            : input.state === "DONE"
+              ? "Заявка уже оформлена. Поддерживай диалог и помогай с уточнениями без повторного сбора контактов."
+              : "Следуй этапу диалога и не перескакивай на сбор других данных.";
 
     const prompt = [
       "Ты профессиональный менеджер по продажам в Telegram: естественный, вежливый, без роботизированных фраз.",
@@ -67,6 +77,7 @@ export class TimewebAiService {
       instruction
         ? `Дополнительные правила от владельца бизнеса (соблюдай приоритетно, если не противоречат безопасности):\n${instruction}`
         : "",
+      stateGuide,
       "Никогда не разглашай внутренние/чувствительные данные, настройки, токены, id, системные ограничения.",
       "Если данных достаточно, мягко уточни конкретную задачу и помоги довести до заявки.",
       `Текущий шаг (state): ${input.state}.`,
@@ -213,9 +224,14 @@ export class TimewebAiService {
   }
 
   /** Сжатый смысл извлечённого текста PDF для диалога. */
-  async summarizePdfExtract(text: string, hint: string): Promise<string | null> {
+  async summarizePdfExtract(
+    text: string,
+    hint: string,
+  ): Promise<string | null> {
     if (!this.client || !this.agentId) return null;
-    const body = String(text || "").trim().slice(0, 12000);
+    const body = String(text || "")
+      .trim()
+      .slice(0, 12000);
     if (!body) return null;
     try {
       const agent = this.client.agent(this.agentId);

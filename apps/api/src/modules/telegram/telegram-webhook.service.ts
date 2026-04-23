@@ -8,6 +8,7 @@ import { BotsService } from "../bots/bots.service";
 @Injectable()
 export class TelegramWebhookService implements OnApplicationBootstrap {
   private readonly log = new Logger(TelegramWebhookService.name);
+  private static readonly SHARED_COMPANY_ID = "__shared__";
 
   constructor(
     private readonly config: ConfigService,
@@ -41,6 +42,7 @@ export class TelegramWebhookService implements OnApplicationBootstrap {
       `Режим webhook: подписываю ${list.length} активных ботов на ${base}/telegram/webhook`,
     );
     for (const bot of list) {
+      if (bot.companyId === TelegramWebhookService.SHARED_COMPANY_ID) continue;
       try {
         await this.setForBot(bot);
       } catch (e) {
@@ -50,6 +52,12 @@ export class TelegramWebhookService implements OnApplicationBootstrap {
   }
 
   async setForBot(bot: BotConnection) {
+    if (bot.companyId === TelegramWebhookService.SHARED_COMPANY_ID) {
+      this.log.log(
+        `Общий бот @${bot.botUsername} (${bot.id}) обслуживается только через polling`,
+      );
+      return;
+    }
     const base = this.webhookBaseUrl();
     if (!base) {
       this.log.warn(

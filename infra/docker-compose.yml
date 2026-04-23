@@ -76,8 +76,64 @@ services:
     ports:
       - "${WEB_PUBLISH_PORT:-3050}:${WEB_PORT:-3000}"
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [appnet]
+    ports:
+      - "${PROMETHEUS_PUBLISH_PORT:-9090}:9090"
+
+  loki:
+    image: grafana/loki:3.1.1
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./monitoring/loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    networks: [appnet]
+    ports:
+      - "${LOKI_PUBLISH_PORT:-3100}:3100"
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
+      - promtail_positions:/tmp
+    depends_on:
+      - loki
+    networks: [appnet]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    depends_on:
+      - loki
+      - prometheus
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    networks: [appnet]
+    ports:
+      - "${GRAFANA_PUBLISH_PORT:-3060}:3000"
+
 networks:
   appnet:
 
 volumes:
   postgres_data:
+  prometheus_data:
+  loki_data:
+  promtail_positions:
+  grafana_data:

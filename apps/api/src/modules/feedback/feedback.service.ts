@@ -4,6 +4,7 @@ import { Company, FeedbackMessage } from "../../database/entities";
 import { Repository } from "typeorm";
 import { S3StorageService } from "../../common/s3-storage.service";
 import { logInfo } from "../../common/logging";
+import { AdminTelegramService } from "../../common/admin-telegram.service";
 
 @Injectable()
 export class FeedbackService {
@@ -13,6 +14,7 @@ export class FeedbackService {
     private feedback: Repository<FeedbackMessage>,
     @InjectRepository(Company) private companies: Repository<Company>,
     private storage: S3StorageService,
+    private adminTelegram: AdminTelegramService,
   ) {}
 
   private assertCompanyAccess(
@@ -133,6 +135,16 @@ export class FeedbackService {
       senderRole: "company",
       attachmentsCount: normalizedAttachments.length,
     });
+    const company = await this.companies.findOne({
+      where: { id: body.companyId },
+    });
+    await this.adminTelegram.notify(
+      `Новое обращение в поддержку\nКомпания: ${company?.name || body.companyId}\nТема: ${(body.topic || "Общий вопрос").trim() || "Общий вопрос"}\nСообщение: ${
+        String(body.text || "")
+          .trim()
+          .slice(0, 300) || "Прикреплён файл"
+      }`,
+    );
     return saved;
   }
 

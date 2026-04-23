@@ -16,6 +16,7 @@ export class TelegramPollingService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private readonly log = new Logger(TelegramPollingService.name);
+  private static readonly SHARED_COMPANY_ID = "__shared__";
   private readonly runners = new Map<string, Bot>();
 
   constructor(
@@ -31,18 +32,27 @@ export class TelegramPollingService
     ).toLowerCase();
   }
 
+  private shouldUsePolling(bot: Pick<BotConnection, "companyId">): boolean {
+    return (
+      this.updatesMode() === "polling" ||
+      bot.companyId === TelegramPollingService.SHARED_COMPANY_ID
+    );
+  }
+
   async onApplicationBootstrap() {
-    if (this.updatesMode() !== "polling") return;
     await this.bots.ensureGlobalBotFromEnv();
     const list = await this.bots.findAllActive();
-    this.log.log(`Режим polling: запуск для ${list.length} ботов`);
-    for (const b of list) {
+    const pollingBots = list.filter((bot) => this.shouldUsePolling(bot));
+    this.log.log(
+      `Polling при старте: запуск для ${pollingBots.length} из ${list.length} активных ботов`,
+    );
+    for (const b of pollingBots) {
       await this.register(b);
     }
   }
 
   async register(bot: BotConnection) {
-    if (this.updatesMode() !== "polling") return;
+    if (!this.shouldUsePolling(bot)) return;
     await this.unregister(bot.id);
     const token = this.encryption.decrypt(bot.tokenEncrypted);
     const gBot = new Bot(token);
