@@ -144,7 +144,10 @@ export default function ChatsPage() {
           maxHeight: { xs: "min(38vh, 320px)", md: "100%" },
         }}
       >
-        <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: "1.05rem", sm: "1.25rem" } }}>
+        <Typography
+          variant="h6"
+          sx={{ mb: 1, fontSize: { xs: "1.05rem", sm: "1.25rem" } }}
+        >
           Диалоги клиентов
         </Typography>
         <Stack
@@ -175,7 +178,9 @@ export default function ChatsPage() {
                     : "rgba(255,255,255,0.03)",
               }}
             >
-              <Typography sx={{ fontWeight: 600, fontSize: { xs: 14, sm: 15 } }}>
+              <Typography
+                sx={{ fontWeight: 600, fontSize: { xs: 14, sm: 15 } }}
+              >
                 {chat.lead?.fullName || `Telegram ${chat.telegramUserId}`}
               </Typography>
               <Typography
@@ -399,7 +404,9 @@ export default function ChatsPage() {
                     );
                     Promise.all(readers).then((loaded) => {
                       const valid = loaded.filter(
-                        (x): x is { name: string; data: string; size: number } =>
+                        (
+                          x,
+                        ): x is { name: string; data: string; size: number } =>
                           Boolean(x),
                       );
                       setDraftFiles((prev) => [...prev, ...valid].slice(0, 10));
@@ -486,7 +493,10 @@ export default function ChatsPage() {
                 transformOrigin={{ vertical: "bottom", horizontal: "left" }}
               >
                 <Box sx={{ p: 1.2, maxWidth: 280 }}>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
                     Эмодзи
                   </Typography>
                   <Divider sx={{ my: 0.8 }} />
@@ -496,7 +506,12 @@ export default function ChatsPage() {
                         key={emoji}
                         size="small"
                         variant="text"
-                        sx={{ minWidth: 40, minHeight: 40, fontSize: 20, lineHeight: 1 }}
+                        sx={{
+                          minWidth: 40,
+                          minHeight: 40,
+                          fontSize: 20,
+                          lineHeight: 1,
+                        }}
                         onClick={() => setReply((prev) => `${prev}${emoji}`)}
                       >
                         {emoji}

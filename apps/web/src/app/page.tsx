@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Chip,
@@ -11,6 +14,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import BrandLogo from "@/components/BrandLogo";
 import { getToken } from "@/lib/api";
 import {
@@ -22,29 +26,32 @@ import {
 
 const featureCards = [
   {
-    title: "Быстрый первый контакт",
-    text: "Клиент получает ответ сразу, без ожидания менеджера, а заявка не теряется в пиковые часы.",
+    title: "Единый сценарий первого контакта",
+    text: "Бот задает базовые вопросы и собирает контактные данные в одном формате для всех обращений.",
   },
   {
-    title: "Распределение без хаоса",
-    text: "Заявки автоматически уходят в работу менеджерам с учетом очереди и текущей загрузки.",
+    title: "Автоматическое назначение",
+    text: "Новые заявки распределяются между менеджерами по очереди, чтобы снизить ручную нагрузку.",
   },
   {
-    title: "Прозрачный контроль",
-    text: "Руководитель видит статусы, диалоги, лимиты и качество обработки в одном окне.",
+    title: "Прозрачная работа в кабинете",
+    text: "В карточке доступны статус, история диалога и ответственный менеджер.",
   },
 ];
 const metrics = [
-  { value: "< 15 сек", label: "до первого ответа клиенту" },
-  { value: "100 / 300 / 1000", label: "заявок в месяц по тарифам" },
-  { value: "1 кабинет", label: "боты, менеджеры, заявки и диалоги" },
+  { value: "Telegram", label: "основной канал обработки входящих" },
+  {
+    value: "100 / 300 / 1000+",
+    label: "лимит новых заявок в месяц по тарифам",
+  },
+  { value: "1 кабинет", label: "бот, менеджеры, заявки и диалоги" },
 ];
 
 export default function Home() {
   const router = useRouter();
+  const isAuthed = Boolean(getToken());
   const handlePlanSelect = (planCode: string) => {
-    const token = getToken();
-    if (token) {
+    if (isAuthed) {
       router.push(`/dashboard/billing?plan=${planCode}`);
       return;
     }
@@ -62,19 +69,21 @@ export default function Home() {
         >
           <BrandLogo />
           <Stack direction="row" spacing={1.2} flexWrap="wrap">
-            <Button component={Link} href="/login" color="inherit">
-              Войти
-            </Button>
+            {!isAuthed && (
+              <Button component={Link} href="/login" color="inherit">
+                Войти
+              </Button>
+            )}
             <Button
               component={Link}
-              href="/register"
+              href={isAuthed ? "/dashboard" : "/register"}
               variant="contained"
               sx={{
                 background:
                   "linear-gradient(135deg, #7c5cff 0%, #5b8cff 50%, #00c2ff 100%)",
               }}
             >
-              Запустить кабинет
+              {isAuthed ? "Перейти в кабинет" : "Создать аккаунт"}
             </Button>
           </Stack>
         </Stack>
@@ -97,7 +106,7 @@ export default function Home() {
             >
               <span className="gradient-text">AI Seller</span>
               <br />
-              помогает компаниям быстрее закрывать заявки.
+              для обработки заявок из Telegram в одном кабинете.
             </Typography>
             <Typography
               sx={{
@@ -107,14 +116,14 @@ export default function Home() {
                 lineHeight: 1.6,
               }}
             >
-              Единый инструмент для входящих заявок в Telegram: бот задает
-              правильные вопросы, собирает контакты, направляет заявку в работу
-              и помогает команде не терять продажи.
+              Решение для малого и среднего бизнеса, где обращения приходят в
+              Telegram. Бот уточняет запрос, собирает контакты, создает заявку и
+              передает ее в работу менеджеру.
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button
                 component={Link}
-                href="/register"
+                href={isAuthed ? "/dashboard" : "/register"}
                 size="large"
                 variant="contained"
                 sx={{
@@ -124,16 +133,18 @@ export default function Home() {
                     "linear-gradient(135deg, #7c5cff 0%, #5b8cff 50%, #00c2ff 100%)",
                 }}
               >
-                Создать кабинет
+                {isAuthed ? "Перейти в кабинет" : "Создать аккаунт"}
               </Button>
-              <Button
-                component={Link}
-                href="/login"
-                size="large"
-                color="inherit"
-              >
-                Войти в кабинет
-              </Button>
+              {!isAuthed && (
+                <Button
+                  component={Link}
+                  href="/login"
+                  size="large"
+                  color="inherit"
+                >
+                  У меня уже есть аккаунт
+                </Button>
+              )}
             </Stack>
           </Stack>
         </Paper>
@@ -187,9 +198,9 @@ export default function Home() {
           <Stack spacing={2}>
             {[
               "Клиент обращается в Telegram-бота по вашей ссылке.",
-              "Бот уточняет контакты и задачу клиента по вашему сценарию.",
-              "Заявка автоматически попадает в кабинет и назначается менеджеру.",
-              "Руководитель видит статусы обработки и прогресс команды.",
+              "Бот уточняет контактные данные и задачу клиента по вашему сценарию.",
+              "Заявка появляется в кабинете и назначается менеджеру.",
+              "Команда отслеживает статус обработки в едином интерфейсе.",
             ].map((item, index) => (
               <Box
                 key={item}
@@ -223,10 +234,10 @@ export default function Home() {
           </Typography>
           <Stack spacing={1.4}>
             {[
-              "стабильный поток заявок без потерь на первом контакте",
-              "единый стандарт обработки заявок для всех менеджеров",
-              "прозрачность по статусам и качеству обработки заявок",
-              "понятную экономику тарифа и загрузки команды",
+              "работать с обращениями из Telegram в структурированном формате",
+              "соблюдать единый стандарт первичной квалификации заявок",
+              "снижать ручные действия при распределении заявок",
+              "видеть статус и историю коммуникации по каждому обращению",
             ].map((item) => (
               <Typography key={item} sx={{ color: "rgba(255,255,255,0.72)" }}>
                 • {item}
@@ -235,13 +246,13 @@ export default function Home() {
           </Stack>
         </Paper>
       </div>
-      <Box sx={{ py: 6 }}>
+      <Box id="plans" sx={{ py: 6 }}>
         <Typography variant="h3" sx={{ mb: 2 }}>
           Тарифы
         </Typography>
         <Typography sx={{ color: "rgba(255,255,255,0.62)", mb: 3.5 }}>
-          Выберите подходящий масштаб и оплачивайте удобный период в личном
-          кабинете.
+          Функции продукта едины для всех планов, в тарифах отличается в первую
+          очередь лимит заявок в месяц.
         </Typography>
         <div className="section-grid">
           {PLAN_LIST.map((plan, index) => (
@@ -283,17 +294,287 @@ export default function Home() {
                 Сверх лимита: {formatRublesWithDecimals(getOveragePrice(plan))}{" "}
                 ₽ за заявку
               </Typography>
+              <Box
+                component="ul"
+                sx={{
+                  m: 0,
+                  mb: 2.5,
+                  pl: 2.2,
+                  minHeight: 108,
+                  "& li": {
+                    color: "rgba(255,255,255,0.58)",
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                    mb: 0.45,
+                  },
+                }}
+              >
+                {plan.features.slice(0, 3).map((feature) => (
+                  <Typography key={feature} component="li" variant="caption">
+                    {feature}
+                  </Typography>
+                ))}
+              </Box>
               <Button
                 fullWidth
                 variant={index === 1 ? "contained" : "outlined"}
                 onClick={() => handlePlanSelect(plan.code)}
               >
-                Выбрать тариф
+                {index === 0
+                  ? "Начать с Basic"
+                  : index === 1
+                    ? "Выбрать Business"
+                    : "Выбрать Pro"}
               </Button>
             </Paper>
           ))}
         </div>
+        <Typography
+          sx={{ color: "rgba(255,255,255,0.52)", mt: 2, fontSize: 13 }}
+        >
+          Оплата производится в личном кабинете. Стоимость сверх лимита
+          рассчитывается по условиям выбранного тарифа.
+        </Typography>
+        <Paper className="glass-card" sx={{ p: { xs: 1.2, md: 1.6 }, mt: 2 }}>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="plans-compare-content"
+              id="plans-compare-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Сравнить все условия тарифов
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <div className="section-grid">
+                {PLAN_LIST.map((plan) => (
+                  <Paper
+                    key={`compare-${plan.code}`}
+                    className="glass-card"
+                    sx={{ p: 2.2, background: "rgba(255,255,255,0.02)" }}
+                  >
+                    <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+                      {plan.name}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "rgba(255,255,255,0.55)",
+                        display: "block",
+                        mb: 1,
+                      }}
+                    >
+                      {plan.monthlyLeadLimit} заявок / мес ·{" "}
+                      {formatRubles(plan.price)} ₽
+                    </Typography>
+                    <Box
+                      component="ul"
+                      sx={{
+                        m: 0,
+                        pl: 2,
+                        "& li": {
+                          color: "rgba(255,255,255,0.6)",
+                          fontSize: 12.5,
+                          lineHeight: 1.45,
+                          mb: 0.4,
+                        },
+                      }}
+                    >
+                      {plan.features.map((feature) => (
+                        <Typography
+                          key={`${plan.code}-${feature}`}
+                          component="li"
+                          variant="caption"
+                        >
+                          {feature}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Paper>
+                ))}
+              </div>
+            </AccordionDetails>
+          </Accordion>
+        </Paper>
       </Box>
+      <Box sx={{ pb: 6 }}>
+        <Typography variant="h3" sx={{ mb: 2 }}>
+          Частые вопросы
+        </Typography>
+        <Paper className="glass-card" sx={{ p: { xs: 1.2, md: 1.6 } }}>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="faq-1-content"
+              id="faq-1-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Сложно ли запустить сервис?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+                Базовая настройка обычно занимает 10-15 минут: создание
+                компании, подключение бота и заполнение сценария.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="faq-2-content"
+              id="faq-2-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Нужен ли собственный Telegram-бот?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+                Можно использовать общий бот или подключить собственный токен в
+                личном кабинете.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="faq-3-content"
+              id="faq-3-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Куда попадают обращения клиентов?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+                В раздел заявок: с контактами, статусом, ответственным
+                менеджером и историей диалога.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="faq-4-content"
+              id="faq-4-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Может ли бот отправлять материалы клиенту?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+                Да, поддерживается отправка фото, видео и файлов, добавленных в
+                настройках компании.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="faq-5-content"
+              id="faq-5-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Что происходит при исчерпании лимита тарифа?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+                Дальнейшие заявки учитываются как сверхлимитные в соответствии с
+                тарифом, выбранным в кабинете.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+              }
+              aria-controls="faq-6-content"
+              id="faq-6-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Где посмотреть юридические документы сервиса?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+                На сайте доступны документы:{" "}
+                <Link href="/offer">публичная оферта</Link>,{" "}
+                <Link href="/terms">условия использования</Link> и{" "}
+                <Link href="/privacy">
+                  политика обработки персональных данных
+                </Link>
+                .
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+        </Paper>
+      </Box>
+      <Paper className="glass-card" sx={{ p: 2, mb: 4 }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={{ xs: 1, sm: 2 }}
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          justifyContent="space-between"
+        >
+          <Typography sx={{ color: "rgba(255,255,255,0.58)", fontSize: 13 }}>
+            Используя сервис, вы соглашаетесь с юридическими документами.
+          </Typography>
+          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+            <Button component={Link} href="/offer" color="inherit" size="small">
+              Оферта
+            </Button>
+            <Button component={Link} href="/terms" color="inherit" size="small">
+              Условия
+            </Button>
+            <Button
+              component={Link}
+              href="/privacy"
+              color="inherit"
+              size="small"
+            >
+              Политика данных
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
     </Container>
   );
 }

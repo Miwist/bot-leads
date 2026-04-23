@@ -12,6 +12,7 @@ import { TelegramPollingService } from "./telegram-polling.service";
 @Injectable()
 export class TelegramTransportListener {
   private readonly log = new Logger(TelegramTransportListener.name);
+  private static readonly SHARED_COMPANY_ID = "__shared__";
 
   constructor(
     private readonly config: ConfigService,
@@ -28,8 +29,12 @@ export class TelegramTransportListener {
   @OnEvent(TELEGRAM_BOT_CONNECTED_EVENT)
   async onBotConnected(bot: BotConnection) {
     try {
-      if (this.updatesMode() === "polling") await this.polling.register(bot);
-      else await this.webhook.setForBot(bot);
+      if (
+        this.updatesMode() === "polling" ||
+        bot.companyId === TelegramTransportListener.SHARED_COMPANY_ID
+      ) {
+        await this.polling.register(bot);
+      } else await this.webhook.setForBot(bot);
     } catch (e) {
       this.log.error(
         `Не удалось применить транспорт для нового бота ${bot.id}`,
@@ -41,7 +46,10 @@ export class TelegramTransportListener {
   @OnEvent(TELEGRAM_BOT_BEFORE_DEACTIVATE_EVENT)
   async onBeforeDeactivate(bot: BotConnection) {
     try {
-      if (this.updatesMode() === "polling")
+      if (
+        this.updatesMode() === "polling" ||
+        bot.companyId === TelegramTransportListener.SHARED_COMPANY_ID
+      )
         await this.polling.unregister(bot.id);
       else await this.webhook.deleteForBot(bot);
     } catch (e) {

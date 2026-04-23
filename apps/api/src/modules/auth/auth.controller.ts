@@ -10,7 +10,13 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "../../common/jwt-auth.guard";
-import { AuthCredentialsDto, UpdateProfileDto } from "./auth.dto";
+import {
+  AuthCredentialsDto,
+  EmailOnlyDto,
+  ResetPasswordDto,
+  UpdateProfileDto,
+  VerifyEmailDto,
+} from "./auth.dto";
 
 @ApiTags("Авторизация")
 @Controller("auth")
@@ -27,6 +33,30 @@ export class AuthController {
   @ApiOperation({ summary: "Вход, выдача JWT" })
   login(@Body() dto: AuthCredentialsDto) {
     return this.auth.login(dto.email, dto.password);
+  }
+
+  @Post("verify-email")
+  @ApiOperation({ summary: "Подтвердить email по токену из письма" })
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.auth.verifyEmail(dto.token);
+  }
+
+  @Post("resend-verification")
+  @ApiOperation({ summary: "Повторно отправить письмо подтверждения" })
+  resendVerification(@Body() dto: EmailOnlyDto) {
+    return this.auth.resendVerification(dto.email);
+  }
+
+  @Post("forgot-password")
+  @ApiOperation({ summary: "Запросить письмо для восстановления пароля" })
+  forgotPassword(@Body() dto: EmailOnlyDto) {
+    return this.auth.requestPasswordReset(dto.email);
+  }
+
+  @Post("reset-password")
+  @ApiOperation({ summary: "Сбросить пароль по токену из письма" })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 
   @Get("me")

@@ -5,12 +5,15 @@ import {
   Company,
   Plan,
   Subscription,
+  User,
   UsageCounter,
 } from "../../database/entities";
 import { BillingController } from "./billing.controller";
 import { BillingYooKassaController } from "./billing-yookassa.controller";
 import { BillingService } from "./billing.service";
 import { YooKassaService } from "./yookassa.service";
+import { MailerService } from "../../common/mailer.service";
+import { AdminTelegramService } from "../../common/admin-telegram.service";
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -19,10 +22,16 @@ import { YooKassaService } from "./yookassa.service";
       UsageCounter,
       BillingPayment,
       Company,
+      User,
     ]),
   ],
   controllers: [BillingController, BillingYooKassaController],
-  providers: [BillingService, YooKassaService],
+  providers: [
+    BillingService,
+    YooKassaService,
+    MailerService,
+    AdminTelegramService,
+  ],
   exports: [BillingService],
 })
 export class BillingModule {}

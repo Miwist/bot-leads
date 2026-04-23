@@ -429,8 +429,9 @@ export default function SettingsPage() {
                 variant="caption"
                 sx={{ color: "rgba(255,255,255,0.45)" }}
               >
-                Числовой ID из @userinfobot — для уведомлений в личные сообщения
-                (это не @username).
+                Напишите в вашем Telegram-боте команду{" "}
+                <strong>/getMyInfo</strong> и скопируйте{" "}
+                <strong>chat_id</strong> сюда (это не @username).
               </Typography>
               {profileSaved && <Alert severity="success">{profileSaved}</Alert>}
               {profileError && <Alert severity="error">{profileError}</Alert>}
@@ -496,7 +497,7 @@ export default function SettingsPage() {
                 setForm((x) => ({ ...x, communicationTone: e.target.value }))
               }
               placeholder="Например: тепло, на «вы», без жаргона"
-              helperText="Влияет на реплики ИИ в диалоге (если Timeweb AI включён на сервере)."
+              helperText="Влияет на реплики ИИ в диалоге (если ИИ включён на сервере)."
             />
             <TextField
               label="Инструкция для ИИ"
