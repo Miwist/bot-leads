@@ -65,6 +65,8 @@ jobs:
             DEPLOY_HOME="${DEPLOY_PATH_VAR:-/var/www/ai.ventaria.ru}"
           fi
           WEB_ROOT="${DEPLOY_HOME}/public"
+          WEB_ROOT_NEW="${DEPLOY_HOME}/public.__new"
+          WEB_ROOT_OLD="${DEPLOY_HOME}/public.__old"
           API_DIR="${DEPLOY_HOME}/api"
           REMOTE="${SSH_USER}@${SSH_HOST}"
 
@@ -73,11 +75,15 @@ jobs:
           ssh-keyscan -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
           ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
-            "mkdir -p '${WEB_ROOT}' '${API_DIR}'"
+            "mkdir -p '${WEB_ROOT}' '${WEB_ROOT_NEW}' '${API_DIR}'"
 
           rsync -avz --delete \
             -e "ssh -o StrictHostKeyChecking=accept-new" \
-            apps/web/out/ "${REMOTE}:${WEB_ROOT}/"
+            apps/web/out/ "${REMOTE}:${WEB_ROOT_NEW}/"
+
+          # Atomic swap of static public directory to avoid partial _next/chunk state during deploy.
+          ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
+            "set -e; rm -rf '${WEB_ROOT_OLD}'; if [ -d '${WEB_ROOT}' ]; then mv '${WEB_ROOT}' '${WEB_ROOT_OLD}'; fi; mv '${WEB_ROOT_NEW}' '${WEB_ROOT}'; mkdir -p '${WEB_ROOT_NEW}'; rm -rf '${WEB_ROOT_OLD}'"
 
           rsync -avz --delete \
             -e "ssh -o StrictHostKeyChecking=accept-new" \

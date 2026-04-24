@@ -154,7 +154,7 @@ export default function BillingPage() {
       <Paper className="glass-card" sx={{ p: 2.5 }}>
         <Stack spacing={1.5}>
           <Typography variant="h6">Тарифы</Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.55)" }}>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
             Сначала пройдите мастер подключения или создайте компанию в
             настройках.
           </Typography>
@@ -191,7 +191,7 @@ export default function BillingPage() {
           )}
           <Typography
             variant="subtitle2"
-            sx={{ color: "rgba(255,255,255,0.55)" }}
+            sx={{ color: "text.secondary" }}
           >
             Текущий тариф
           </Typography>
@@ -200,11 +200,11 @@ export default function BillingPage() {
           </Typography>
           <Typography
             variant="body2"
-            sx={{ color: "rgba(255,255,255,0.48)", mb: 0.5 }}
+            sx={{ color: "text.secondary", mb: 0.5 }}
           >
             {currentPlan.tagline}
           </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.55)" }}>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
             Использовано {leadsUsed} / {monthlyLeadLimit} заявок ({usagePercent}
             %)
           </Typography>
@@ -232,7 +232,7 @@ export default function BillingPage() {
             sx={{
               m: 0,
               pl: 2.25,
-              color: "rgba(255,255,255,0.52)",
+              color: "text.secondary",
               fontSize: 13,
               lineHeight: 1.45,
             }}
@@ -271,14 +271,14 @@ export default function BillingPage() {
         <Stack spacing={0.75}>
           <Typography
             variant="subtitle2"
-            sx={{ color: "rgba(255,255,255,0.55)" }}
+            sx={{ color: "text.secondary" }}
           >
             Баланс сверх лимита
           </Typography>
           <Typography sx={{ fontSize: 24, fontWeight: 700 }}>
             {formatBalanceRubFromKopecks(data?.overageBalanceKopecks)} ₽
           </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.52)" }}>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
             После исчерпания месячного лимита списывается{" "}
             {formatRublesWithDecimals(
               typeof data?.overageRubPerLead === "number"
@@ -297,7 +297,7 @@ export default function BillingPage() {
           </Typography>
           <Typography
             variant="body2"
-            sx={{ color: "rgba(255,255,255,0.52)", mb: 2 }}
+            sx={{ color: "text.secondary", mb: 2 }}
           >
             Выберите услугу (тариф), срок или произвольную сумму, затем оплатите
             через ЮKassa.
@@ -305,7 +305,7 @@ export default function BillingPage() {
 
           <Typography
             variant="caption"
-            sx={{ color: "rgba(255,255,255,0.45)", display: "block", mb: 0.75 }}
+            sx={{ color: "text.secondary", display: "block", mb: 0.75 }}
           >
             Услуга
           </Typography>
@@ -349,7 +349,7 @@ export default function BillingPage() {
             <Stack spacing={1.5}>
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Срок оплаты
               </Typography>
@@ -365,7 +365,7 @@ export default function BillingPage() {
                   </ToggleButton>
                 ))}
               </ToggleButtonGroup>
-              <Divider sx={{ borderColor: "rgba(255,255,255,0.08)", my: 1 }} />
+              <Divider sx={{ borderColor: "divider", my: 1 }} />
               <Stack
                 direction="row"
                 justifyContent="space-between"
@@ -373,7 +373,7 @@ export default function BillingPage() {
               >
                 <Typography
                   variant="body2"
-                  sx={{ color: "rgba(255,255,255,0.55)" }}
+                  sx={{ color: "text.secondary" }}
                 >
                   К оплате
                 </Typography>
@@ -384,7 +384,7 @@ export default function BillingPage() {
               {discountPercent > 0 && (
                 <Typography
                   variant="caption"
-                  sx={{ color: "rgba(255,255,255,0.52)" }}
+                  sx={{ color: "text.secondary" }}
                 >
                   Скидка {discountPercent}%: было {formatRubles(totalPlanRub)}{" "}
                   ₽, экономия {formatRubles(totalPlanRub - discountedTotalRub)}{" "}
@@ -393,7 +393,7 @@ export default function BillingPage() {
               )}
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 После оплаты тариф «{selected.name}» активируется автоматически.
               </Typography>
@@ -420,7 +420,7 @@ export default function BillingPage() {
           </Button>
           <Typography
             variant="caption"
-            sx={{ color: "rgba(255,255,255,0.48)", display: "block", mt: 1.25 }}
+            sx={{ color: "text.secondary", display: "block", mt: 1.25 }}
           >
             Оплачивая тариф, вы принимаете{" "}
             <Link href="/offer" style={{ color: "inherit" }}>
@@ -452,27 +452,28 @@ export default function BillingPage() {
                     sx={{
                       p: 1.5,
                       borderRadius: 2,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      bgcolor: "rgba(255,255,255,0.02)",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "action.hover",
                     }}
                   >
                     <Typography sx={{ fontWeight: 600 }}>{d.name}</Typography>
                     <Typography
                       variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.48)", mb: 0.5 }}
+                      sx={{ color: "text.secondary", mb: 0.5 }}
                     >
                       {d.tagline}
                     </Typography>
                     <Typography
                       variant="body2"
-                      sx={{ color: "rgba(255,255,255,0.52)" }}
+                      sx={{ color: "text.secondary" }}
                     >
                       {formatRubles(d.price)} ₽ / мес · {plan.monthlyLeadLimit}{" "}
                       заявок
                     </Typography>
                     <Typography
                       variant="caption"
-                      sx={{ color: "rgba(255,255,255,0.45)" }}
+                      sx={{ color: "text.secondary" }}
                     >
                       Сверх лимита:{" "}
                       {formatRublesWithDecimals(getOveragePrice(plan))} ₽ /
@@ -485,7 +486,7 @@ export default function BillingPage() {
                         mt: 1,
                         pl: 2,
                         "& li": {
-                          color: "rgba(255,255,255,0.48)",
+                          color: "text.secondary",
                           fontSize: 12,
                           mb: 0.25,
                         },

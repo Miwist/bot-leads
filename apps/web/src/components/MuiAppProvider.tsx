@@ -52,6 +52,9 @@ function buildTheme(mode: "light" | "dark") {
             borderRadius: 14,
             fontWeight: 600,
           },
+          contained: {
+            color: "#ffffff",
+          },
         },
       },
       MuiTextField: {
