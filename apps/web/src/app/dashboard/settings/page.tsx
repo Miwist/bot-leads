@@ -8,6 +8,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  Checkbox,
   MenuItem,
   IconButton,
   Paper,
@@ -16,6 +17,7 @@ import {
   TextField,
   Typography,
   Tooltip,
+  FormControlLabel,
 } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -117,6 +119,7 @@ export default function SettingsPage() {
     communicationTone: "",
     welcomeMessage: "",
     assistantInstruction: "",
+    createLeadFromFirstMessage: false,
     timezone: "Europe/Moscow",
     dataFields: [] as string[],
     botMaterials: [] as Array<{
@@ -177,6 +180,7 @@ export default function SettingsPage() {
         communicationTone: String(company.communicationTone || ""),
         welcomeMessage: String(company.welcomeMessage || ""),
         assistantInstruction: String(company.assistantInstruction || ""),
+        createLeadFromFirstMessage: Boolean(company.createLeadFromFirstMessage),
         timezone: (company.timezone as string) || "Europe/Moscow",
         dataFields: company.dataFields || [],
         botMaterials: company.botMaterials || [],
@@ -198,6 +202,7 @@ export default function SettingsPage() {
         communicationTone: String(c?.communicationTone || ""),
         welcomeMessage: String(c?.welcomeMessage || ""),
         assistantInstruction: String(c?.assistantInstruction || ""),
+        createLeadFromFirstMessage: Boolean(c?.createLeadFromFirstMessage),
         timezone: c?.timezone || "Europe/Moscow",
         dataFields: c?.dataFields || [],
         botMaterials: c?.botMaterials || [],
@@ -289,6 +294,7 @@ export default function SettingsPage() {
           communicationTone: form.communicationTone.trim() || null,
           welcomeMessage: form.welcomeMessage.trim() || null,
           assistantInstruction: form.assistantInstruction.trim() || null,
+          createLeadFromFirstMessage: form.createLeadFromFirstMessage,
           timezone: form.timezone,
           dataFields: form.dataFields,
           botMaterials: form.botMaterials,
@@ -322,6 +328,7 @@ export default function SettingsPage() {
         communicationTone: form.communicationTone.trim() || null,
         welcomeMessage: form.welcomeMessage.trim() || null,
         assistantInstruction: form.assistantInstruction.trim() || null,
+        createLeadFromFirstMessage: form.createLeadFromFirstMessage,
         timezone: form.timezone,
         dataFields: form.dataFields,
         botMaterials: form.botMaterials,
@@ -355,6 +362,7 @@ export default function SettingsPage() {
             communicationTone: form.communicationTone.trim() || null,
             welcomeMessage: form.welcomeMessage.trim() || null,
             assistantInstruction: form.assistantInstruction.trim() || null,
+            createLeadFromFirstMessage: form.createLeadFromFirstMessage,
             timezone: form.timezone,
             dataFields: form.dataFields,
             botMaterials: form.botMaterials,
@@ -519,6 +527,20 @@ export default function SettingsPage() {
                 }))
               }
               helperText="Дополнительные правила: табу, продукт, что нельзя обещать. Не храните пароли и секреты."
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={form.createLeadFromFirstMessage}
+                  onChange={(e) =>
+                    setForm((x) => ({
+                      ...x,
+                      createLeadFromFirstMessage: e.target.checked,
+                    }))
+                  }
+                />
+              }
+              label="Создавать заявку с первого сообщения клиента (после согласия)"
             />
             <Typography
               variant="caption"

@@ -27,6 +27,7 @@ export type CompanyRow = {
   welcomeMessage?: string | null;
   assistantInstruction?: string | null;
   clientDisambiguation?: string | null;
+  createLeadFromFirstMessage?: boolean;
   timezone?: string;
   dataFields?: string[];
   botMaterials?: Array<{

@@ -7,6 +7,7 @@
     "start": "nest start",
     "dev": "nest start --watch",
     "simulate:dialogs": "ts-node src/tools/dialog-simulator.ts",
+    "test:telegram-files": "ts-node src/tools/telegram-file-policy-test.ts",
     "start:prod": "node dist/main",
     "migration:run": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:run",
     "migration:revert": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:revert",

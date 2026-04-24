@@ -22,14 +22,20 @@ import { TimewebAiService } from "../ai/timeweb-ai.service";
 import { logError, logInfo, logWarn } from "../../common/logging";
 import { ManagersService } from "../managers/managers.service";
 import { AdminTelegramService } from "../../common/admin-telegram.service";
+import {
+  classifyTelegramDocument,
+  TELEGRAM_MULTIMODAL_MAX_BYTES,
+} from "./telegram-file-policy";
 
 const execFileAsync = promisify(execFile);
-const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
+const MAX_TG_DOWNLOAD_BYTES = TELEGRAM_MULTIMODAL_MAX_BYTES;
 
 @Injectable()
 export class TelegramService {
   private readonly log = new Logger(TelegramService.name);
   private buckets = new Map<string, number[]>();
+  private processedUpdateIds = new Map<string, number>();
+  private processedUpdateIdsCounter = 0;
 
   constructor(
     @InjectRepository(Conversation) private conv: Repository<Conversation>,
@@ -56,6 +62,23 @@ export class TelegramService {
 
   private isSharedBot(bot: BotConnection) {
     return bot.companyId === "__shared__";
+  }
+
+  private dedupeUpdate(botId: string, update: unknown): boolean {
+    const updateId = Number((update as { update_id?: unknown })?.update_id);
+    if (!Number.isFinite(updateId)) return false;
+    const key = `${botId}:${updateId}`;
+    if (this.processedUpdateIds.has(key)) return true;
+    this.processedUpdateIds.set(key, Date.now());
+    this.processedUpdateIdsCounter += 1;
+    // Lightweight periodic cleanup to avoid unbounded memory growth.
+    if (this.processedUpdateIdsCounter % 200 === 0) {
+      const cutoff = Date.now() - 10 * 60 * 1000;
+      for (const [k, ts] of this.processedUpdateIds.entries()) {
+        if (ts < cutoff) this.processedUpdateIds.delete(k);
+      }
+    }
+    return false;
   }
 
   private isManagerHoldActive(context: Record<string, unknown>): boolean {
@@ -600,6 +623,10 @@ export class TelegramService {
 
   /** Обработка одного Update для известного подключения (webhook и polling). */
   async dispatchUpdate(bot: BotConnection, update: unknown) {
+    if (this.dedupeUpdate(bot.id, update)) {
+      logInfo(this.log, "telegram_update_skipped_duplicate", { botId: bot.id });
+      return;
+    }
     const userMsg = (update as { message?: Record<string, unknown> })?.message;
     const cb = (update as { callback_query?: Record<string, unknown> })
       ?.callback_query;
@@ -840,6 +867,44 @@ export class TelegramService {
       }
     };
 
+    const ensureLeadFromFirstMessageIfNeeded = async (opts: {
+      companyId: string;
+      enabled: boolean;
+      text: string;
+      fromId: number;
+    }) => {
+      if (!opts.enabled) return;
+      if (!opts.text.trim()) return;
+      const existingLead = await this.leads.getByConversationId(c.id);
+      if (existingLead) return;
+      const can = await this.billing.canCreateLead(opts.companyId);
+      if (!can) return;
+      const accounting = await this.billing.incrementLead(opts.companyId);
+      try {
+        await this.leads.createLead({
+          companyId: opts.companyId,
+          conversationId: c.id,
+          fullName: String((c.context as Record<string, unknown>).name || "Не указан"),
+          phone: String((c.context as Record<string, unknown>).phone || ""),
+          need: opts.text.trim(),
+          source: "telegram_bot",
+          details: {
+            telegramUserId: String(opts.fromId),
+            botConnectionId: bot.id,
+            createdFromFirstMessage: true,
+          },
+        });
+      } catch (err) {
+        await this.billing.rollbackIncrementLead(opts.companyId, accounting);
+        throw err;
+      }
+      logInfo(this.log, "lead_created_from_first_client_message", {
+        botId: bot.id,
+        companyId: opts.companyId,
+        conversationId: c.id,
+      });
+    };
+
     if (callbackData.startsWith("cmp:")) {
       const selectedCompanyId = callbackData.slice(4);
       const company = await this.companies.findOne({
@@ -956,6 +1021,21 @@ export class TelegramService {
     const currentCompany = currentCompanyId
       ? await this.companies.findOne({ where: { id: currentCompanyId } })
       : null;
+    if (
+      currentCompanyId &&
+      !callbackData &&
+      !rawText.startsWith("/start") &&
+      userTextForFlow.trim() &&
+      Boolean(currentCompany?.createLeadFromFirstMessage) &&
+      String(c.state || "") !== "CONSENT_DECLINED"
+    ) {
+      await ensureLeadFromFirstMessageIfNeeded({
+        companyId: currentCompanyId,
+        enabled: true,
+        text: userTextForFlow,
+        fromId,
+      });
+    }
     const materials = (
       (currentCompany?.botMaterials as Array<{
         title?: string;
@@ -1357,17 +1437,20 @@ export class TelegramService {
     const photoId = largestPhoto?.file_id;
     const docMime = String(doc?.mime_type || "").toLowerCase();
     const docName = String(doc?.file_name || "").toLowerCase();
-    const isPdf = docMime === "application/pdf" || docName.endsWith(".pdf");
-    const isImageDoc =
-      docMime.startsWith("image/") &&
-      (docMime === "image/jpeg" ||
-        docMime === "image/jpg" ||
-        docMime === "image/png" ||
-        docMime === "image/webp");
+    const docKind = classifyTelegramDocument({
+      mimeType: docMime,
+      fileName: docName,
+      fileSize: doc?.file_size,
+      maxBytes: MAX_TG_DOWNLOAD_BYTES,
+    });
     const docId =
-      doc?.file_id && (isPdf || isImageDoc) ? doc.file_id : undefined;
+      doc?.file_id && (docKind === "pdf" || docKind === "image")
+        ? doc.file_id
+        : undefined;
     const unsupportedDoc =
-      doc?.file_id && !isPdf && !isImageDoc ? doc.file_id : undefined;
+      doc?.file_id && (docKind === "unsupported" || docKind === "too_large")
+        ? doc.file_id
+        : undefined;
 
     if (!audioFileId && !photoId && !docId && !unsupportedDoc) {
       return base;
@@ -1392,8 +1475,14 @@ export class TelegramService {
     }
 
     if (unsupportedDoc) {
+      if (docKind === "too_large") {
+        await send(
+          "Файл слишком большой. Отправьте PDF/изображение до 18 МБ или опишите запрос текстом.",
+        );
+        return null;
+      }
       await send(
-        "Пока умею разбирать PDF и изображения. Пришлите в таком формате или опишите текстом.",
+        "Пока умею разбирать PDF, JPG, PNG и WEBP. Пришлите в таком формате или опишите текстом.",
       );
       return null;
     }
@@ -1433,7 +1522,7 @@ export class TelegramService {
       if (desc) pieces.push(`[Фото] ${desc}`);
     }
 
-    if (docId && isPdf) {
+    if (docId && docKind === "pdf") {
       const buf = await this.downloadTelegramFile(bot, docId);
       if (!buf) {
         await send("Не удалось скачать PDF.");
@@ -1449,7 +1538,7 @@ export class TelegramService {
       const hint = caption || rawText || "";
       const summary = await this.timewebAi.summarizePdfExtract(extracted, hint);
       if (summary) pieces.push(`[PDF] ${summary}`);
-    } else if (docId && isImageDoc) {
+    } else if (docId && docKind === "image") {
       const buf = await this.downloadTelegramFile(bot, docId);
       if (!buf) {
         await send("Не удалось скачать файл.");
