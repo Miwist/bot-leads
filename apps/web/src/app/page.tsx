@@ -95,9 +95,10 @@ export default function Home() {
               label="AI-продавец для компаний"
               sx={{
                 alignSelf: "flex-start",
-                color: "#c9d2ff",
-                background: "rgba(124, 92, 255, 0.12)",
-                border: "1px solid rgba(124, 92, 255, 0.25)",
+                color: "primary.main",
+                background: "action.selected",
+                border: "1px solid",
+                borderColor: "primary.light",
               }}
             />
             <Typography
@@ -111,7 +112,7 @@ export default function Home() {
             <Typography
               sx={{
                 fontSize: 18,
-                color: "rgba(255,255,255,0.72)",
+                color: "text.secondary",
                 maxWidth: 760,
                 lineHeight: 1.6,
               }}
@@ -158,16 +159,15 @@ export default function Home() {
                   sx={{
                     p: 2.4,
                     borderRadius: 3,
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "action.hover",
+                    border: "1px solid",
+                    borderColor: "divider",
                   }}
                 >
                   <Typography sx={{ fontWeight: 600, mb: 0.8 }}>
                     {card.title}
                   </Typography>
-                  <Typography
-                    sx={{ color: "rgba(255,255,255,0.62)", lineHeight: 1.6 }}
-                  >
+                  <Typography sx={{ color: "text.secondary", lineHeight: 1.6 }}>
                     {card.text}
                   </Typography>
                 </Box>
@@ -183,7 +183,7 @@ export default function Home() {
               <Typography sx={{ fontSize: 34, fontWeight: 700, mb: 1 }}>
                 {metric.value}
               </Typography>
-              <Typography sx={{ color: "rgba(255,255,255,0.6)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 {metric.label}
               </Typography>
             </Paper>
@@ -221,7 +221,7 @@ export default function Home() {
                 >
                   {index + 1}
                 </Box>
-                <Typography sx={{ color: "rgba(255,255,255,0.72)" }}>
+                <Typography sx={{ color: "text.secondary" }}>
                   {item}
                 </Typography>
               </Box>
@@ -239,7 +239,7 @@ export default function Home() {
               "снижать ручные действия при распределении заявок",
               "видеть статус и историю коммуникации по каждому обращению",
             ].map((item) => (
-              <Typography key={item} sx={{ color: "rgba(255,255,255,0.72)" }}>
+              <Typography key={item} sx={{ color: "text.secondary" }}>
                 • {item}
               </Typography>
             ))}
@@ -250,7 +250,7 @@ export default function Home() {
         <Typography variant="h3" sx={{ mb: 2 }}>
           Тарифы
         </Typography>
-        <Typography sx={{ color: "rgba(255,255,255,0.62)", mb: 3.5 }}>
+        <Typography sx={{ color: "text.secondary", mb: 3.5 }}>
           Функции продукта едины для всех планов, в тарифах отличается в первую
           очередь лимит заявок в месяц.
         </Typography>
@@ -266,7 +266,7 @@ export default function Home() {
                 borderColor:
                   index === 1
                     ? "rgba(124, 92, 255, 0.4)"
-                    : "rgba(255,255,255,0.08)",
+                    : "divider",
               }}
             >
               {index === 1 && (
@@ -277,7 +277,7 @@ export default function Home() {
                     top: 18,
                     right: 18,
                     background: "rgba(124, 92, 255, 0.14)",
-                    color: "#d6dbff",
+                    color: "primary.main",
                   }}
                 />
               )}
@@ -287,10 +287,10 @@ export default function Home() {
               <Typography sx={{ fontSize: 34, fontWeight: 700, mb: 1 }}>
                 {formatRubles(plan.price)} ₽
               </Typography>
-              <Typography sx={{ color: "rgba(255,255,255,0.62)", mb: 0.5 }}>
+              <Typography sx={{ color: "text.secondary", mb: 0.5 }}>
                 {plan.monthlyLeadLimit} заявок в месяц
               </Typography>
-              <Typography sx={{ color: "rgba(255,255,255,0.62)", mb: 3 }}>
+              <Typography sx={{ color: "text.secondary", mb: 3 }}>
                 Сверх лимита: {formatRublesWithDecimals(getOveragePrice(plan))}{" "}
                 ₽ за заявку
               </Typography>
@@ -302,7 +302,7 @@ export default function Home() {
                   pl: 2.2,
                   minHeight: 108,
                   "& li": {
-                    color: "rgba(255,255,255,0.58)",
+                    color: "text.secondary",
                     fontSize: 13,
                     lineHeight: 1.45,
                     mb: 0.45,
@@ -330,7 +330,7 @@ export default function Home() {
           ))}
         </div>
         <Typography
-          sx={{ color: "rgba(255,255,255,0.52)", mt: 2, fontSize: 13 }}
+          sx={{ color: "text.secondary", mt: 2, fontSize: 13 }}
         >
           Оплата производится в личном кабинете. Стоимость сверх лимита
           рассчитывается по условиям выбранного тарифа.
@@ -342,7 +342,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="plans-compare-content"
               id="plans-compare-header"
@@ -357,7 +357,7 @@ export default function Home() {
                   <Paper
                     key={`compare-${plan.code}`}
                     className="glass-card"
-                    sx={{ p: 2.2, background: "rgba(255,255,255,0.02)" }}
+                    sx={{ p: 2.2, background: "action.hover" }}
                   >
                     <Typography sx={{ fontWeight: 700, mb: 0.5 }}>
                       {plan.name}
@@ -365,7 +365,7 @@ export default function Home() {
                     <Typography
                       variant="caption"
                       sx={{
-                        color: "rgba(255,255,255,0.55)",
+                        color: "text.secondary",
                         display: "block",
                         mb: 1,
                       }}
@@ -379,7 +379,7 @@ export default function Home() {
                         m: 0,
                         pl: 2,
                         "& li": {
-                          color: "rgba(255,255,255,0.6)",
+                          color: "text.secondary",
                           fontSize: 12.5,
                           lineHeight: 1.45,
                           mb: 0.4,
@@ -414,7 +414,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="faq-1-content"
               id="faq-1-header"
@@ -424,7 +424,7 @@ export default function Home() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 Базовая настройка обычно занимает 10-15 минут: создание
                 компании, подключение бота и заполнение сценария.
               </Typography>
@@ -436,7 +436,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="faq-2-content"
               id="faq-2-header"
@@ -446,7 +446,7 @@ export default function Home() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 Можно использовать общий бот или подключить собственный токен в
                 личном кабинете.
               </Typography>
@@ -458,7 +458,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="faq-3-content"
               id="faq-3-header"
@@ -468,7 +468,7 @@ export default function Home() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 В раздел заявок: с контактами, статусом, ответственным
                 менеджером и историей диалога.
               </Typography>
@@ -480,7 +480,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="faq-4-content"
               id="faq-4-header"
@@ -490,7 +490,7 @@ export default function Home() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 Да, поддерживается отправка фото, видео и файлов, добавленных в
                 настройках компании.
               </Typography>
@@ -502,7 +502,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="faq-5-content"
               id="faq-5-header"
@@ -512,7 +512,7 @@ export default function Home() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 Дальнейшие заявки учитываются как сверхлимитные в соответствии с
                 тарифом, выбранным в кабинете.
               </Typography>
@@ -524,7 +524,7 @@ export default function Home() {
           >
             <AccordionSummary
               expandIcon={
-                <ExpandMoreIcon sx={{ color: "rgba(255,255,255,0.72)" }} />
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
               }
               aria-controls="faq-6-content"
               id="faq-6-header"
@@ -534,7 +534,7 @@ export default function Home() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography sx={{ color: "rgba(255,255,255,0.68)" }}>
+              <Typography sx={{ color: "text.secondary" }}>
                 На сайте доступны документы:{" "}
                 <Link href="/offer">публичная оферта</Link>,{" "}
                 <Link href="/terms">условия использования</Link> и{" "}
@@ -554,7 +554,7 @@ export default function Home() {
           alignItems={{ xs: "flex-start", sm: "center" }}
           justifyContent="space-between"
         >
-          <Typography sx={{ color: "rgba(255,255,255,0.58)", fontSize: 13 }}>
+          <Typography sx={{ color: "text.secondary", fontSize: 13 }}>
             Используя сервис, вы соглашаетесь с юридическими документами.
           </Typography>
           <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>

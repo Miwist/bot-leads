@@ -17,6 +17,10 @@ export class AdminTelegramService {
     return { token, chatId };
   }
 
+  configuredChatId(): string {
+    return this.settings().chatId;
+  }
+
   async notify(text: string) {
     const { token, chatId } = this.settings();
     if (!token || !chatId) {
@@ -33,10 +37,22 @@ export class AdminTelegramService {
       });
     } catch (e) {
       const ax = axios.isAxiosError(e) ? e : null;
+      const data = (ax?.response?.data || {}) as {
+        description?: string;
+        error_code?: number;
+        parameters?: { retry_after?: number };
+      };
       logError(this.log, "admin_telegram_notify_failed", {
-        status: ax?.response?.status,
-        message:
-          ax?.message || (e instanceof Error ? e.message : "request_failed"),
+        status: ax?.response?.status || null,
+        errorCode: data.error_code || null,
+        description: data.description || null,
+        retryAfter: data.parameters?.retry_after || null,
+        message: String(
+          ax?.message ||
+            (e instanceof Error ? e.message : "request_failed") ||
+            "request_failed",
+        ),
+        code: String((ax?.code as string) || ""),
       });
     }
   }

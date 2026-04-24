@@ -145,3 +145,20 @@ export function getStatusLabel(
   }
   return LEAD_STATUS_LABELS[status] || status;
 }
+
+export function getStoredThemeMode(storageKey: string): "light" | "dark" | "system" {
+  if (typeof window === "undefined") return "light";
+  const raw = localStorage.getItem(storageKey);
+  if (raw === "dark" || raw === "system") return raw;
+  return "light";
+}
+
+export function resolveThemeMode(mode: "light" | "dark" | "system"): "light" | "dark" {
+  if (mode === "system") {
+    if (typeof window === "undefined") return "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+  return mode;
+}

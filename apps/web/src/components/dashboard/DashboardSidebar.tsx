@@ -58,7 +58,7 @@ export default function DashboardSidebar() {
         <Box>
           <Typography
             variant="caption"
-            sx={{ color: "rgba(255,255,255,0.45)", display: "block", mb: 0.5 }}
+            sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
           >
             Пространство
           </Typography>
@@ -76,7 +76,7 @@ export default function DashboardSidebar() {
                   px: 1,
                   py: 0.5,
                   borderRadius: 2,
-                  bgcolor: "rgba(255,255,255,0.06)",
+                  bgcolor: "action.hover",
                   fontSize: 15,
                   fontWeight: 600,
                 }}
@@ -134,7 +134,7 @@ export default function DashboardSidebar() {
                   <IconButton
                     size="small"
                     onClick={() => setEditing(true)}
-                    sx={{ color: "rgba(255,255,255,0.45)" }}
+                    sx={{ color: "text.secondary" }}
                   >
                     <EditOutlinedIcon fontSize="small" />
                   </IconButton>
@@ -143,7 +143,7 @@ export default function DashboardSidebar() {
             </Stack>
           )}
         </Box>
-        <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
+        <Divider sx={{ borderColor: "divider" }} />
         <Stack spacing={0.25}>
           {nav.map(([href, label]) => {
             const active = pathname === href;
@@ -158,12 +158,12 @@ export default function DashboardSidebar() {
                   borderRadius: 2,
                   fontSize: 14,
                   fontWeight: active ? 600 : 500,
-                  color: active ? "#fff" : "rgba(255,255,255,0.65)",
-                  bgcolor: active ? "rgba(124,92,255,0.14)" : "transparent",
+                  color: active ? "primary.main" : "text.secondary",
+                  bgcolor: active ? "action.selected" : "transparent",
                   border: "1px solid",
-                  borderColor: active ? "rgba(124,92,255,0.28)" : "transparent",
+                  borderColor: active ? "primary.main" : "transparent",
                   transition: "background .15s ease, border-color .15s ease",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.04)" },
+                  "&:hover": { bgcolor: "action.hover" },
                 }}
               >
                 {label}

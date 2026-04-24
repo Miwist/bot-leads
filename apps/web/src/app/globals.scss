@@ -1,25 +1,35 @@
 * {
   box-sizing: border-box;
 }
+:root {
+  --app-bg: linear-gradient(180deg, #f5f7fb 0%, #edf1f8 52%, #f7f9fd 100%);
+  --app-text: #121826;
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --panel-border: rgba(17, 24, 39, 0.08);
+  --sidebar-bg: rgba(255, 255, 255, 0.86);
+}
+[data-app-theme="dark"] {
+  --app-bg:
+    radial-gradient(circle at top left, rgba(124, 92, 255, 0.18), transparent 26%),
+    radial-gradient(circle at top right, rgba(0, 194, 255, 0.12), transparent 24%),
+    linear-gradient(180deg, #04050a 0%, #070b14 48%, #04050a 100%);
+  --app-text: #f5f7fb;
+  --panel-bg: linear-gradient(
+    180deg,
+    rgba(18, 24, 41, 0.92) 0%,
+    rgba(11, 16, 30, 0.92) 100%
+  );
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --sidebar-bg: rgba(7, 11, 20, 0.82);
+}
 html {
   scroll-behavior: smooth;
 }
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(
-      circle at top left,
-      rgba(124, 92, 255, 0.18),
-      transparent 26%
-    ),
-    radial-gradient(
-      circle at top right,
-      rgba(0, 194, 255, 0.12),
-      transparent 24%
-    ),
-    linear-gradient(180deg, #04050a 0%, #070b14 48%, #04050a 100%);
-  color: #f5f7fb;
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 a {
   color: inherit;
@@ -37,8 +47,8 @@ textarea {
 }
 .dashboard-sidebar {
   width: 252px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(7, 11, 20, 0.82);
+  border-right: 1px solid var(--panel-border);
+  background: var(--sidebar-bg);
   backdrop-filter: blur(18px);
   padding: 20px;
   position: sticky;
@@ -55,12 +65,8 @@ textarea {
   flex-direction: column;
 }
 .glass-card {
-  background: linear-gradient(
-    180deg,
-    rgba(18, 24, 41, 0.92) 0%,
-    rgba(11, 16, 30, 0.92) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
   border-radius: 16px;
 }
