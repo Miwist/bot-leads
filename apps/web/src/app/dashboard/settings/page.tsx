@@ -9,6 +9,8 @@ import {
   Button,
   CircularProgress,
   Checkbox,
+  Tab,
+  Tabs,
   MenuItem,
   IconButton,
   Paper,
@@ -145,6 +147,7 @@ export default function SettingsPage() {
   );
   const [profileSaved, setProfileSaved] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [activeTab, setActiveTab] = useState(0);
   const pendingPlan = searchParams.get("plan");
   const timezoneOptions = useMemo(
     () =>
@@ -416,7 +419,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2.5}>
       <Stack spacing={0.75}>
         <Typography variant="h6" sx={{ fontWeight: 650 }}>
           {title}
@@ -430,265 +433,278 @@ export default function SettingsPage() {
         </Typography>
       </Stack>
       <div className="dashboard-grid">
-        <Paper className="glass-card span-8" sx={{ p: 2.5 }}>
-          <Stack spacing={2}>
+        <Paper className="glass-card span-8" sx={{ p: { xs: 2.25, md: 3 } }}>
+          <Stack spacing={2.5}>
             {saved && <Alert severity="success">{saved}</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
-            <Stack spacing={1.25} sx={{ py: 0.5 }}>
-              <Typography
-                variant="subtitle2"
-                sx={{ color: "text.secondary" }}
-              >
-                Ваш Telegram
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary" }}
-              >
-                Напишите в вашем Telegram-боте команду{" "}
-                <strong>/getMyInfo</strong> и скопируйте{" "}
-                <strong>chat_id</strong> сюда (это не @username).
-              </Typography>
-              {profileSaved && <Alert severity="success">{profileSaved}</Alert>}
-              {profileError && <Alert severity="error">{profileError}</Alert>}
-              <TextField
-                label="Telegram ID"
-                size="small"
-                value={profileTelegram}
-                onChange={(e) => setProfileTelegram(e.target.value)}
-                helperText="Очистите поле и нажмите «Сохранить Telegram», чтобы сбросить."
-                sx={{ maxWidth: 440 }}
-              />
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => void saveProfileTelegram()}
-                sx={{ alignSelf: "flex-start" }}
-              >
-                Сохранить Telegram
-              </Button>
-            </Stack>
-            <TextField
-              label="Название компании"
-              value={form.name}
-              onChange={(e) => setForm((x) => ({ ...x, name: e.target.value }))}
-            />
-            <TextField
-              label="Как отличить вас в общем Telegram-боте"
-              multiline
-              minRows={2}
-              value={form.clientDisambiguation}
-              onChange={(e) =>
-                setForm((x) => ({
-                  ...x,
-                  clientDisambiguation: e.target.value,
-                }))
-              }
-              placeholder="Например: стенд D7, выставка Nails · СПб"
-              helperText="Если название не уникальное, клиент увидит эту подпись в списке и на кнопке. Для своего бота не используется."
-            />
-            <TextField
-              label="Описание"
-              multiline
-              minRows={3}
-              value={form.description}
-              onChange={(e) =>
-                setForm((x) => ({ ...x, description: e.target.value }))
-              }
-            />
-            <TextField
-              label="Задача бота"
-              multiline
-              minRows={4}
-              value={form.botObjective}
-              onChange={(e) =>
-                setForm((x) => ({ ...x, botObjective: e.target.value }))
-              }
-              helperText="Что бот должен делать для бизнеса: запись, квалификация, передача менеджеру."
-            />
-            <TextField
-              label="Тон общения"
-              value={form.communicationTone}
-              onChange={(e) =>
-                setForm((x) => ({ ...x, communicationTone: e.target.value }))
-              }
-              placeholder="Например: тепло, на «вы», без жаргона"
-              helperText="Влияет на реплики ИИ в диалоге (если ИИ включён на сервере)."
-            />
-            <TextField
-              label="Инструкция для ИИ"
-              multiline
-              minRows={3}
-              value={form.assistantInstruction}
-              onChange={(e) =>
-                setForm((x) => ({
-                  ...x,
-                  assistantInstruction: e.target.value,
-                }))
-              }
-              helperText="Дополнительные правила: табу, продукт, что нельзя обещать. Не храните пароли и секреты."
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={form.createLeadFromFirstMessage}
+            <Tabs
+              value={activeTab}
+              onChange={(_, value) => setActiveTab(value)}
+              variant="scrollable"
+              allowScrollButtonsMobile
+              sx={{
+                borderBottom: "1px solid",
+                borderColor: "divider",
+                "& .MuiTabs-indicator": { height: 3, borderRadius: 999 },
+              }}
+            >
+              <Tab label="Компания" />
+              <Tab label="Бот и интерфейс" />
+              <Tab label="Сбор и обработка" />
+            </Tabs>
+
+            {activeTab === 0 && (
+              <Stack spacing={2.5}>
+                <Stack spacing={1.25} sx={{ py: 0.5 }}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Ваш Telegram
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
+                    Напишите в вашем Telegram-боте команду{" "}
+                    <strong>/getMyInfo</strong> и скопируйте{" "}
+                    <strong>chat_id</strong> сюда (это не @username).
+                  </Typography>
+                  {profileSaved && <Alert severity="success">{profileSaved}</Alert>}
+                  {profileError && <Alert severity="error">{profileError}</Alert>}
+                  <TextField
+                    label="Telegram ID"
+                    size="small"
+                    value={profileTelegram}
+                    onChange={(e) => setProfileTelegram(e.target.value)}
+                    helperText="Очистите поле и нажмите «Сохранить Telegram», чтобы сбросить."
+                    sx={{ maxWidth: 440 }}
+                  />
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => void saveProfileTelegram()}
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    Сохранить Telegram
+                  </Button>
+                </Stack>
+                <TextField
+                  label="Название компании"
+                  value={form.name}
+                  onChange={(e) => setForm((x) => ({ ...x, name: e.target.value }))}
+                />
+                <TextField
+                  label="Как отличить вас в общем Telegram-боте"
+                  multiline
+                  minRows={2}
+                  value={form.clientDisambiguation}
                   onChange={(e) =>
                     setForm((x) => ({
                       ...x,
-                      createLeadFromFirstMessage: e.target.checked,
+                      clientDisambiguation: e.target.value,
                     }))
                   }
+                  placeholder="Например: стенд D7, выставка Nails · СПб"
+                  helperText="Если название не уникальное, клиент увидит эту подпись в списке и на кнопке. Для своего бота не используется."
                 />
-              }
-              label="Создавать заявку с первого сообщения клиента (после согласия)"
-            />
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary" }}
-            >
-              Приветствие после /start — только для своего Telegram-бота. В
-              общем боте клиент сначала выбирает компанию из списка.
-            </Typography>
-            <TextField
-              label="Приветствие (свой бот)"
-              multiline
-              minRows={3}
-              value={form.welcomeMessage}
-              onChange={(e) =>
-                setForm((x) => ({ ...x, welcomeMessage: e.target.value }))
-              }
-              helperText="Одно сообщение. Имя клиента спросит следующий шаг сценария."
-            />
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Button
-                size="small"
-                variant="outlined"
-                disabled={aiBusy || !companyId}
-                onClick={() => void genWelcome()}
-                startIcon={
-                  aiAction === "welcome" ? (
-                    <CircularProgress color="inherit" size={14} thickness={5} />
-                  ) : undefined
-                }
-                sx={{ minWidth: { xs: "100%", sm: 200 } }}
-              >
-                Сгенерировать (ИИ)
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                disabled={aiBusy || !companyId || !form.welcomeMessage.trim()}
-                onClick={() => void refineWelcome()}
-                startIcon={
-                  aiAction === "refine" ? (
-                    <CircularProgress color="inherit" size={14} thickness={5} />
-                  ) : undefined
-                }
-                sx={{ minWidth: { xs: "100%", sm: 200 } }}
-              >
-                Улучшить текст (ИИ)
-              </Button>
-            </Stack>
-            <Stack spacing={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ color: "text.secondary" }}
-              >
-                Тема интерфейса
-              </Typography>
-              <Select
-                size="small"
-                value={themeMode}
-                onChange={(e) => {
-                  const value = String(e.target.value) as
-                    | "light"
-                    | "dark"
-                    | "system";
-                  setThemeModeLocal(value);
-                  setThemeMode(value);
-                }}
-              >
-                <MenuItem value="light">Светлая (основная)</MenuItem>
-                <MenuItem value="dark">Тёмная</MenuItem>
-                <MenuItem value="system">Как в системе</MenuItem>
-              </Select>
-            </Stack>
-            <Stack spacing={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ color: "text.secondary" }}
-              >
-                Часовой пояс
-              </Typography>
-              <Select
-                size="small"
-                value={
-                  timezoneOptions.some((x) => x.value === form.timezone)
-                    ? form.timezone
-                    : "Europe/Moscow"
-                }
-                onChange={(e) => {
-                  setForm((x) => ({ ...x, timezone: String(e.target.value) }));
-                }}
-              >
-                {timezoneOptions.map((tz) => (
-                  <MenuItem key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </Stack>
-            <Stack spacing={1}>
-              <Typography
-                variant="subtitle2"
-                sx={{ color: "text.secondary" }}
-              >
-                Поля для сбора у клиента
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary" }}
-              >
-                Отметьте шаблоны или добавьте своё поле — подписи попадут в
-                карточку заявки.
-              </Typography>
-              <Stack direction="row" gap={0.75} useFlexGap flexWrap="wrap">
-                {fieldOptions.map((item) => {
-                  const active = form.dataFields.includes(item);
-                  return (
-                    <Button
-                      key={item}
-                      size="small"
-                      variant={active ? "contained" : "outlined"}
-                      onClick={() =>
+                <TextField
+                  label="Описание"
+                  multiline
+                  minRows={3}
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm((x) => ({ ...x, description: e.target.value }))
+                  }
+                />
+              </Stack>
+            )}
+
+            {activeTab === 1 && (
+              <Stack spacing={2.5}>
+                <TextField
+                  label="Задача бота"
+                  multiline
+                  minRows={4}
+                  value={form.botObjective}
+                  onChange={(e) =>
+                    setForm((x) => ({ ...x, botObjective: e.target.value }))
+                  }
+                  helperText="Что бот должен делать для бизнеса: запись, квалификация, передача менеджеру."
+                />
+                <TextField
+                  label="Тон общения"
+                  value={form.communicationTone}
+                  onChange={(e) =>
+                    setForm((x) => ({ ...x, communicationTone: e.target.value }))
+                  }
+                  placeholder="Например: тепло, на «вы», без жаргона"
+                  helperText="Влияет на реплики ИИ в диалоге (если ИИ включён на сервере)."
+                />
+                <TextField
+                  label="Инструкция для ИИ"
+                  multiline
+                  minRows={3}
+                  value={form.assistantInstruction}
+                  onChange={(e) =>
+                    setForm((x) => ({
+                      ...x,
+                      assistantInstruction: e.target.value,
+                    }))
+                  }
+                  helperText="Дополнительные правила: табу, продукт, что нельзя обещать. Не храните пароли и секреты."
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={form.createLeadFromFirstMessage}
+                      onChange={(e) =>
                         setForm((x) => ({
                           ...x,
-                          dataFields: active
-                            ? x.dataFields.filter((f) => f !== item)
-                            : [...x.dataFields, item],
+                          createLeadFromFirstMessage: e.target.checked,
                         }))
                       }
-                    >
-                      {item}
-                    </Button>
-                  );
-                })}
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                <TextField
-                  label="Своё поле"
-                  size="small"
-                  value={customFieldInput}
-                  onChange={(e) => setCustomFieldInput(e.target.value)}
-                  placeholder="Например: сайт, количество сотрудников"
-                  fullWidth
+                    />
+                  }
+                  label="Создавать заявку с первого сообщения клиента (после согласия)"
                 />
-                <Button variant="outlined" onClick={addCustomDataField}>
-                  Добавить
-                </Button>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  Приветствие после /start — только для своего Telegram-бота. В
+                  общем боте клиент сначала выбирает компанию из списка.
+                </Typography>
+                <TextField
+                  label="Приветствие (свой бот)"
+                  multiline
+                  minRows={3}
+                  value={form.welcomeMessage}
+                  onChange={(e) =>
+                    setForm((x) => ({ ...x, welcomeMessage: e.target.value }))
+                  }
+                  helperText="Одно сообщение. Имя клиента спросит следующий шаг сценария."
+                />
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={aiBusy || !companyId}
+                    onClick={() => void genWelcome()}
+                    startIcon={
+                      aiAction === "welcome" ? (
+                        <CircularProgress color="inherit" size={14} thickness={5} />
+                      ) : undefined
+                    }
+                    sx={{ minWidth: { xs: "100%", sm: 200 } }}
+                  >
+                    Сгенерировать (ИИ)
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={aiBusy || !companyId || !form.welcomeMessage.trim()}
+                    onClick={() => void refineWelcome()}
+                    startIcon={
+                      aiAction === "refine" ? (
+                        <CircularProgress color="inherit" size={14} thickness={5} />
+                      ) : undefined
+                    }
+                    sx={{ minWidth: { xs: "100%", sm: 200 } }}
+                  >
+                    Улучшить текст (ИИ)
+                  </Button>
+                </Stack>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ color: "text.secondary" }}>
+                    Тема интерфейса
+                  </Typography>
+                  <Select
+                    size="small"
+                    value={themeMode}
+                    onChange={(e) => {
+                      const value = String(e.target.value) as
+                        | "light"
+                        | "dark"
+                        | "system";
+                      setThemeModeLocal(value);
+                      setThemeMode(value);
+                    }}
+                  >
+                    <MenuItem value="light">Светлая (основная)</MenuItem>
+                    <MenuItem value="dark">Тёмная</MenuItem>
+                    <MenuItem value="system">Как в системе</MenuItem>
+                  </Select>
+                </Stack>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ color: "text.secondary" }}>
+                    Часовой пояс
+                  </Typography>
+                  <Select
+                    size="small"
+                    value={
+                      timezoneOptions.some((x) => x.value === form.timezone)
+                        ? form.timezone
+                        : "Europe/Moscow"
+                    }
+                    onChange={(e) => {
+                      setForm((x) => ({ ...x, timezone: String(e.target.value) }));
+                    }}
+                  >
+                    {timezoneOptions.map((tz) => (
+                      <MenuItem key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </Stack>
               </Stack>
-            </Stack>
-            <Stack spacing={1.2}>
+            )}
+
+            {activeTab === 2 && (
+              <Stack spacing={2.5}>
+                <Stack spacing={1.25}>
+                  <Typography variant="subtitle2" sx={{ color: "text.secondary" }}>
+                    Поля для сбора у клиента
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    Отметьте шаблоны или добавьте своё поле — подписи попадут в
+                    карточку заявки.
+                  </Typography>
+                  <Stack direction="row" gap={1} useFlexGap flexWrap="wrap">
+                    {fieldOptions.map((item) => {
+                      const active = form.dataFields.includes(item);
+                      return (
+                        <Button
+                          key={item}
+                          size="small"
+                          variant={active ? "contained" : "outlined"}
+                          onClick={() =>
+                            setForm((x) => ({
+                              ...x,
+                              dataFields: active
+                                ? x.dataFields.filter((f) => f !== item)
+                                : [...x.dataFields, item],
+                            }))
+                          }
+                        >
+                          {item}
+                        </Button>
+                      );
+                    })}
+                  </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                    <TextField
+                      label="Своё поле"
+                      size="small"
+                      value={customFieldInput}
+                      onChange={(e) => setCustomFieldInput(e.target.value)}
+                      placeholder="Например: сайт, количество сотрудников"
+                      fullWidth
+                    />
+                    <Button variant="outlined" onClick={addCustomDataField}>
+                      Добавить
+                    </Button>
+                  </Stack>
+                </Stack>
+                <Stack spacing={1.5}>
               <Typography
                 variant="subtitle2"
                 sx={{ color: "text.secondary" }}
@@ -766,7 +782,7 @@ export default function SettingsPage() {
                 <Stack
                   key={item.id}
                   direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
+                  spacing={1.25}
                   alignItems={{ sm: "center" }}
                 >
                   <TextField
@@ -853,7 +869,7 @@ export default function SettingsPage() {
               ))}
             </Stack>
 
-            <Stack spacing={1.25}>
+                <Stack spacing={1.5}>
               <Stack
                 direction="row"
                 justifyContent="space-between"
@@ -891,7 +907,7 @@ export default function SettingsPage() {
                 <Stack
                   key={row.code + idx}
                   direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
+                  spacing={1.25}
                   alignItems={{ sm: "center" }}
                 >
                   <TextField
@@ -946,6 +962,8 @@ export default function SettingsPage() {
                 </Stack>
               ))}
             </Stack>
+              </Stack>
+            )}
 
             <Button
               variant="contained"
@@ -958,8 +976,8 @@ export default function SettingsPage() {
           </Stack>
         </Paper>
 
-        <Paper className="glass-card span-4" sx={{ p: 2.5 }}>
-          <Stack spacing={1.5}>
+        <Paper className="glass-card span-4" sx={{ p: { xs: 2.25, md: 3 } }}>
+          <Stack spacing={1.75}>
             <Typography variant="subtitle1" sx={{ fontWeight: 650 }}>
               Что заполнить
             </Typography>

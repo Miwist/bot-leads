@@ -12,7 +12,7 @@ function buildTheme(mode: "light" | "dark") {
     palette: {
       mode,
       background: {
-        default: dark ? "#05060a" : "#f6f7fb",
+        default: dark ? "#05060a" : "#f8fbff",
         paper: dark ? "#0b1020" : "#ffffff",
       },
       primary: {
@@ -22,8 +22,8 @@ function buildTheme(mode: "light" | "dark") {
         main: "#00c2ff",
       },
       text: {
-        primary: dark ? "#f5f7fb" : "#111827",
-        secondary: dark ? "rgba(245,247,251,0.66)" : "rgba(17,24,39,0.64)",
+        primary: dark ? "#f5f7fb" : "#162033",
+        secondary: dark ? "rgba(245,247,251,0.66)" : "rgba(22,32,51,0.64)",
       },
     },
     shape: {
@@ -79,7 +79,7 @@ function buildTheme(mode: "light" | "dark") {
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
-            background: dark ? "rgba(255,255,255,0.03)" : "rgba(17,24,39,0.03)",
+            background: dark ? "rgba(255,255,255,0.03)" : "rgba(34,55,94,0.03)",
             minHeight: 52,
           },
         },

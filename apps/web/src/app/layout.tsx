@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.scss";
 import MuiAppProvider from "@/components/MuiAppProvider";
 
@@ -33,6 +34,10 @@ const shareImage = {
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
   applicationName: "Ventaria",
+  verification: {
+    yandex: "9c79e5c13ce94b18",
+    google: "x0aHY2-UD5zoFXGbW7zs4kOIbdeDb5mgeoKXA3MsMUw",
+  },
   title: {
     default: defaultTitle,
     template: "%s — Ventaria",
@@ -67,6 +72,18 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
+        <Script id="yandex-metrika" strategy="afterInteractive">
+          {`(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,'script','https://mc.yandex.ru/metrika/tag.js?id=108748898','ym');ym(108748898,'init',{ssr:true,webvisor:true,clickmap:true,ecommerce:'dataLayer',referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});`}
+        </Script>
+        <noscript>
+          <div>
+            <img
+              src="https://mc.yandex.ru/watch/108748898"
+              style={{ position: "absolute", left: "-9999px" }}
+              alt=""
+            />
+          </div>
+        </noscript>
         <MuiAppProvider>
           <Suspense fallback={null}>{children}</Suspense>
         </MuiAppProvider>
