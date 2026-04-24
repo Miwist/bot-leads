@@ -23,14 +23,12 @@ function resolveMetadataBase(): URL {
 }
 
 const shareImage = {
-  url: "/ventaria.png",
+  url: "/icon.svg",
   width: 1536,
   height: 1024,
   alt: "Ventaria",
   type: "image/png",
 } as const;
-
-const faviconHref = "/ventaria.png?v=2";
 
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
@@ -41,9 +39,9 @@ export const metadata: Metadata = {
   },
   description: defaultDescription,
   icons: {
-    icon: [{ url: faviconHref, type: "image/png" }],
-    shortcut: [faviconHref],
-    apple: "/ventaria.png",
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: ["/icon.svg"],
+    apple: "/icon.svg",
   },
   openGraph: {
     type: "website",

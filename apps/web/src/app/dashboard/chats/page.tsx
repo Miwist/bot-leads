@@ -15,12 +15,16 @@ import {
   Paper,
   Popover,
   Stack,
+  Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import InsertEmoticonIcon from "@mui/icons-material/InsertEmoticon";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { getStatusLabel } from "@/lib/ui";
 import { useDashboard } from "@/components/dashboard/DashboardContext";
 
@@ -33,6 +37,12 @@ export default function ChatsPage() {
     Array<{ name: string; data: string; size: number }>
   >([]);
   const [error, setError] = useState("");
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [messagesCursor, setMessagesCursor] = useState<string | null>(null);
+  const [managerHoldMinutes, setManagerHoldMinutes] = useState(25);
+  const [modeBusy, setModeBusy] = useState(false);
   const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const timezone = company?.timezone || "Europe/Moscow";
@@ -47,6 +57,14 @@ export default function ChatsPage() {
     if (!companyId) return;
     void load();
   }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    const timer = window.setInterval(() => {
+      void load();
+    }, 12000);
+    return () => window.clearInterval(timer);
+  }, [companyId]);
   const active = useMemo(
     () => items.find((item) => item.id === selectedId) || items[0],
     [items, selectedId],
@@ -54,7 +72,36 @@ export default function ChatsPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [active?.id, active?.timeline]);
+  }, [active?.id, messages.length]);
+
+  useEffect(() => {
+    if (!companyId || !active?.id) {
+      setMessages([]);
+      setHasMoreMessages(false);
+      setMessagesCursor(null);
+      return;
+    }
+    void loadMessages(active.id);
+  }, [companyId, active?.id]);
+
+  const loadMessages = async (conversationId: string, cursor?: string | null) => {
+    if (!companyId) return;
+    setLoadingMessages(true);
+    setError("");
+    try {
+      const { data } = await api.get(`/conversations/${conversationId}/messages`, {
+        params: { companyId, limit: 40, ...(cursor ? { cursor } : {}) },
+      });
+      const chunk = Array.isArray(data?.items) ? data.items : [];
+      setMessages((prev) => (cursor ? [...chunk, ...prev] : chunk));
+      setHasMoreMessages(Boolean(data?.hasMore));
+      setMessagesCursor(data?.nextCursor || null);
+    } catch {
+      setError("Не удалось загрузить сообщения.");
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
 
   const sendReply = async () => {
     if (!companyId || !active?.id || (!reply.trim() && draftFiles.length === 0))
@@ -69,9 +116,27 @@ export default function ChatsPage() {
       });
       setReply("");
       setDraftFiles([]);
-      await load();
+      await Promise.all([load(), loadMessages(active.id)]);
     } catch {
       setError("Не удалось отправить ответ клиенту.");
+    }
+  };
+
+  const toggleManagerMode = async (checked: boolean) => {
+    if (!companyId || !active?.id) return;
+    setModeBusy(true);
+    setError("");
+    try {
+      await api.patch(`/conversations/${active.id}/mode`, {
+        companyId,
+        mode: checked ? "manager" : "assistant",
+        managerHoldMinutes,
+      });
+      await load();
+    } catch {
+      setError("Не удалось переключить режим диалога.");
+    } finally {
+      setModeBusy(false);
     }
   };
   const formatTs = (value?: string) => {
@@ -119,11 +184,17 @@ export default function ChatsPage() {
       setError("Не удалось удалить переписку.");
     }
   };
+  const isManagerMode = active?.mode === "manager";
 
   return (
     <Box
       sx={{
         flex: 1,
+        height: {
+          xs: "auto",
+          md: 700,
+        },
+        maxHeight: { md: 700 },
         minHeight: 0,
         display: "flex",
         flexDirection: { xs: "column", md: "row" },
@@ -170,12 +241,16 @@ export default function ChatsPage() {
                 borderRadius: 3,
                 border:
                   chat.id === active?.id
-                    ? "1px solid rgba(124,92,255,0.35)"
-                    : "1px solid rgba(255,255,255,0.06)",
+                    ? "1px solid"
+                    : "1px solid",
+                borderColor:
+                  chat.id === active?.id
+                    ? "primary.main"
+                    : "divider",
                 background:
                   chat.id === active?.id
-                    ? "rgba(124,92,255,0.08)"
-                    : "rgba(255,255,255,0.03)",
+                    ? "action.selected"
+                    : "background.paper",
               }}
             >
               <Typography
@@ -185,7 +260,7 @@ export default function ChatsPage() {
               </Typography>
               <Typography
                 sx={{
-                  color: "rgba(255,255,255,0.55)",
+                  color: "text.secondary",
                   fontSize: { xs: 12.5, sm: 13.5 },
                   display: "-webkit-box",
                   WebkitLineClamp: 2,
@@ -197,7 +272,7 @@ export default function ChatsPage() {
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 {formatTs(
                   chat.timeline?.[chat.timeline.length - 1]?.createdAt ||
@@ -207,7 +282,7 @@ export default function ChatsPage() {
             </Box>
           ))}
           {items.length === 0 && (
-            <Typography sx={{ color: "rgba(255,255,255,0.5)" }}>
+            <Typography sx={{ color: "text.secondary" }}>
               Диалогов пока нет.
             </Typography>
           )}
@@ -244,7 +319,7 @@ export default function ChatsPage() {
                   </Typography>
                   <Typography
                     sx={{
-                      color: "rgba(255,255,255,0.55)",
+                      color: "text.secondary",
                       fontSize: { xs: 12.5, sm: 14 },
                       wordBreak: "break-word",
                     }}
@@ -266,6 +341,30 @@ export default function ChatsPage() {
                     )}
                     sx={{ maxWidth: { xs: "100%", sm: 220 } }}
                   />
+                  <Tooltip
+                    title={
+                      isManagerMode
+                        ? "ИИ не отвечает клиенту, пока менеджер в чате."
+                        : "ИИ отвечает автоматически."
+                    }
+                  >
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      {isManagerMode ? (
+                        <PersonOutlineIcon fontSize="small" />
+                      ) : (
+                        <SmartToyOutlinedIcon fontSize="small" />
+                      )}
+                      <Typography variant="caption">
+                        {isManagerMode ? "Менеджер подключен" : "ИИ отвечает"}
+                      </Typography>
+                      <Switch
+                        size="small"
+                        disabled={modeBusy}
+                        checked={isManagerMode}
+                        onChange={(e) => void toggleManagerMode(e.target.checked)}
+                      />
+                    </Stack>
+                  </Tooltip>
                   <Button
                     size="small"
                     color="inherit"
@@ -289,10 +388,21 @@ export default function ChatsPage() {
                 WebkitOverflowScrolling: "touch",
               }}
             >
+              {hasMoreMessages && (
+                <Button
+                  size="small"
+                  variant="text"
+                  disabled={loadingMessages}
+                  onClick={() => void loadMessages(active.id, messagesCursor)}
+                  sx={{ mb: 1 }}
+                >
+                  Показать более ранние сообщения
+                </Button>
+              )}
               <Stack spacing={1.2}>
-                {(active.timeline || []).map((message: any, idx: number) => (
+                {messages.map((message: any, idx: number) => (
                   <Box
-                    key={`${message.role}-${idx}`}
+                    key={message.id || `${message.role}-${idx}`}
                     sx={{
                       alignSelf:
                         message.role === "assistant"
@@ -305,15 +415,15 @@ export default function ChatsPage() {
                       borderRadius: 4,
                       background:
                         message.role === "assistant"
-                          ? "rgba(255,255,255,0.05)"
+                          ? "action.hover"
                           : message.role === "manager"
-                            ? "rgba(0, 194, 255, 0.16)"
-                            : "linear-gradient(135deg, rgba(124,92,255,0.35), rgba(0,194,255,0.18))",
+                            ? "rgba(0, 194, 255, 0.18)"
+                            : "rgba(124, 92, 255, 0.18)",
                     }}
                   >
                     <Typography
                       variant="caption"
-                      sx={{ color: "rgba(255,255,255,0.65)" }}
+                      sx={{ color: "text.secondary" }}
                     >
                       {roleLabel(String(message.role || "user"))}
                       {message.createdAt
@@ -322,7 +432,7 @@ export default function ChatsPage() {
                     </Typography>
                     <Typography
                       sx={{
-                        color: "rgba(255,255,255,0.86)",
+                        color: "text.primary",
                         fontSize: { xs: 14, sm: 15 },
                         wordBreak: "break-word",
                         whiteSpace: "pre-wrap",
@@ -338,7 +448,7 @@ export default function ChatsPage() {
                           sx={{
                             mt: 0.7,
                             display: "block",
-                            color: "rgba(255,255,255,0.6)",
+                            color: "text.secondary",
                           }}
                         >
                           📎 {a?.name || "Файл"}
@@ -354,7 +464,8 @@ export default function ChatsPage() {
               sx={{
                 flexShrink: 0,
                 pt: 0.5,
-                borderTop: "1px solid rgba(255,255,255,0.08)",
+                borderTop: "1px solid",
+                borderColor: "divider",
                 mt: "auto",
               }}
             >
@@ -426,7 +537,8 @@ export default function ChatsPage() {
                   sx={{
                     p: 0,
                     mb: 1,
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: "1px solid",
+                    borderColor: "divider",
                     borderRadius: 2,
                   }}
                 >
@@ -458,6 +570,18 @@ export default function ChatsPage() {
                 spacing={1}
                 alignItems={{ xs: "stretch", sm: "flex-end" }}
               >
+                <TextField
+                  size="small"
+                  type="number"
+                  label="Автовозврат ИИ, мин"
+                  value={managerHoldMinutes}
+                  onChange={(e) =>
+                    setManagerHoldMinutes(
+                      Math.max(5, Math.min(180, Number(e.target.value || 25))),
+                    )
+                  }
+                  sx={{ maxWidth: { xs: "100%", sm: 190 } }}
+                />
                 <TextField
                   fullWidth
                   label="Ответ клиенту"
@@ -523,7 +647,7 @@ export default function ChatsPage() {
             </Box>
           </>
         ) : (
-          <Typography sx={{ color: "rgba(255,255,255,0.5)" }}>
+          <Typography sx={{ color: "text.secondary" }}>
             Выбери диалог слева.
           </Typography>
         )}

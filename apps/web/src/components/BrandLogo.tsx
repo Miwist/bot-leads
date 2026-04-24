@@ -39,12 +39,12 @@ export default function BrandLogo({ compact = false }: { compact?: boolean }) {
         </Box>
         <Box>
           <Typography
-            sx={{ color: "#fff", fontWeight: 700, letterSpacing: "-0.03em" }}
+            sx={{ color: "text.primary", fontWeight: 700, letterSpacing: "-0.03em" }}
           >
             AI Seller
           </Typography>
           {!compact && (
-            <Typography sx={{ color: "rgba(255,255,255,0.56)", fontSize: 12 }}>
+            <Typography sx={{ color: "text.secondary", fontSize: 12 }}>
               AI-продавец для Telegram
             </Typography>
           )}

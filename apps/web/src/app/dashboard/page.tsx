@@ -45,7 +45,7 @@ export default function DashboardPage() {
             </Typography>
             <Typography
               variant="body2"
-              sx={{ color: "rgba(255,255,255,0.52)", maxWidth: 720 }}
+              sx={{ color: "text.secondary", maxWidth: 720 }}
             >
               {company?.description ||
                 "Кратко опишите продукт и целевого клиента в настройках — бот будет собирать заявки точнее."}
@@ -73,7 +73,7 @@ export default function DashboardPage() {
         <Paper className="glass-card span-4" sx={{ p: 2.5 }}>
           <Typography
             variant="caption"
-            sx={{ color: "rgba(255,255,255,0.45)" }}
+            sx={{ color: "text.secondary" }}
           >
             Тариф
           </Typography>
@@ -82,7 +82,7 @@ export default function DashboardPage() {
           </Typography>
           <Typography
             variant="body2"
-            sx={{ color: "rgba(255,255,255,0.52)", mt: 1 }}
+            sx={{ color: "text.secondary", mt: 1 }}
           >
             Заявки: {billing?.usage?.leadsUsed ?? 0} /{" "}
             {billing?.plan?.monthlyLeadLimit ?? 100}
@@ -100,7 +100,7 @@ export default function DashboardPage() {
           <Paper key={card.label} className="glass-card span-3" sx={{ p: 2 }}>
             <Typography
               variant="caption"
-              sx={{ color: "rgba(255,255,255,0.45)" }}
+              sx={{ color: "text.secondary" }}
             >
               {card.label}
             </Typography>
@@ -123,7 +123,7 @@ export default function DashboardPage() {
                   gap: 2,
                   p: 1.25,
                   borderRadius: 2,
-                  bgcolor: "rgba(255,255,255,0.03)",
+                  bgcolor: "action.hover",
                 }}
               >
                 <Box>
@@ -132,7 +132,7 @@ export default function DashboardPage() {
                   </Typography>
                   <Typography
                     variant="body2"
-                    sx={{ color: "rgba(255,255,255,0.5)" }}
+                    sx={{ color: "text.secondary" }}
                   >
                     {lead.need}
                   </Typography>
@@ -146,7 +146,7 @@ export default function DashboardPage() {
             {(!stats?.latest || stats.latest.length === 0) && (
               <Typography
                 variant="body2"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Пока нет заявок.
               </Typography>
@@ -166,7 +166,7 @@ export default function DashboardPage() {
               <Typography
                 key={item}
                 variant="body2"
-                sx={{ color: "rgba(255,255,255,0.55)" }}
+                sx={{ color: "text.secondary" }}
               >
                 • {item}
               </Typography>

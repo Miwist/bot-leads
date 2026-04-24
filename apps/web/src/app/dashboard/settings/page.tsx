@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import { useDashboard } from "@/components/dashboard/DashboardContext";
 import type { LeadStatusRow } from "@/lib/ui";
+import { getThemeMode, setThemeMode } from "@/components/MuiAppProvider";
 
 const fieldOptions = [
   "Имя",
@@ -136,6 +137,9 @@ export default function SettingsPage() {
   const [aiAction, setAiAction] = useState<null | "welcome" | "refine">(null);
   const aiBusy = aiAction !== null;
   const [profileTelegram, setProfileTelegram] = useState("");
+  const [themeMode, setThemeModeLocal] = useState<"light" | "dark" | "system">(
+    "light",
+  );
   const [profileSaved, setProfileSaved] = useState("");
   const [profileError, setProfileError] = useState("");
   const pendingPlan = searchParams.get("plan");
@@ -155,6 +159,10 @@ export default function SettingsPage() {
         setProfileTelegram(String(r.data?.telegramChatId || ""));
       })
       .catch(() => null);
+  }, []);
+
+  useEffect(() => {
+    setThemeModeLocal(getThemeMode());
   }, []);
 
   useEffect(() => {
@@ -405,7 +413,7 @@ export default function SettingsPage() {
         <Typography variant="h6" sx={{ fontWeight: 650 }}>
           {title}
         </Typography>
-        <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.5)" }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
           Пошаговый ввод — в разделе{" "}
           <Link href="/dashboard/onboarding" style={{ color: "inherit" }}>
             «Подключение»
@@ -421,13 +429,13 @@ export default function SettingsPage() {
             <Stack spacing={1.25} sx={{ py: 0.5 }}>
               <Typography
                 variant="subtitle2"
-                sx={{ color: "rgba(255,255,255,0.55)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Ваш Telegram
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Напишите в вашем Telegram-боте команду{" "}
                 <strong>/getMyInfo</strong> и скопируйте{" "}
@@ -514,7 +522,7 @@ export default function SettingsPage() {
             />
             <Typography
               variant="caption"
-              sx={{ color: "rgba(255,255,255,0.45)" }}
+              sx={{ color: "text.secondary" }}
             >
               Приветствие после /start — только для своего Telegram-бота. В
               общем боте клиент сначала выбирает компанию из списка.
@@ -562,7 +570,31 @@ export default function SettingsPage() {
             <Stack spacing={1}>
               <Typography
                 variant="subtitle2"
-                sx={{ color: "rgba(255,255,255,0.62)" }}
+                sx={{ color: "text.secondary" }}
+              >
+                Тема интерфейса
+              </Typography>
+              <Select
+                size="small"
+                value={themeMode}
+                onChange={(e) => {
+                  const value = String(e.target.value) as
+                    | "light"
+                    | "dark"
+                    | "system";
+                  setThemeModeLocal(value);
+                  setThemeMode(value);
+                }}
+              >
+                <MenuItem value="light">Светлая (основная)</MenuItem>
+                <MenuItem value="dark">Тёмная</MenuItem>
+                <MenuItem value="system">Как в системе</MenuItem>
+              </Select>
+            </Stack>
+            <Stack spacing={1}>
+              <Typography
+                variant="subtitle2"
+                sx={{ color: "text.secondary" }}
               >
                 Часовой пояс
               </Typography>
@@ -587,13 +619,13 @@ export default function SettingsPage() {
             <Stack spacing={1}>
               <Typography
                 variant="subtitle2"
-                sx={{ color: "rgba(255,255,255,0.55)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Поля для сбора у клиента
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Отметьте шаблоны или добавьте своё поле — подписи попадут в
                 карточку заявки.
@@ -637,13 +669,13 @@ export default function SettingsPage() {
             <Stack spacing={1.2}>
               <Typography
                 variant="subtitle2"
-                sx={{ color: "rgba(255,255,255,0.55)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Материалы для бота (каталог/меню/видео и т.д.)
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.45)" }}
+                sx={{ color: "text.secondary" }}
               >
                 Бот сможет предложить клиенту материалы и отправить их после
                 согласия.
@@ -773,7 +805,7 @@ export default function SettingsPage() {
                   <Tooltip title="Если указать одинаковое название у нескольких файлов, бот отправит их одной подборкой.">
                     <InfoOutlinedIcon
                       fontSize="small"
-                      sx={{ color: "rgba(255,255,255,0.5)" }}
+                      sx={{ color: "text.secondary" }}
                     />
                   </Tooltip>
                   <IconButton
@@ -809,7 +841,7 @@ export default function SettingsPage() {
               >
                 <Typography
                   variant="subtitle2"
-                  sx={{ color: "rgba(255,255,255,0.55)" }}
+                  sx={{ color: "text.secondary" }}
                 >
                   Статусы заявок
                 </Typography>
@@ -828,7 +860,7 @@ export default function SettingsPage() {
               </Stack>
               <Typography
                 variant="caption"
-                sx={{ color: "rgba(255,255,255,0.42)" }}
+                sx={{ color: "text.secondary" }}
               >
                 «Новый» и «В работе» нельзя удалить — они нужны для автоматики.
                 Код статуса меняйте только если знаете, зачем.
@@ -911,7 +943,7 @@ export default function SettingsPage() {
             </Typography>
             <Typography
               variant="body2"
-              sx={{ color: "rgba(255,255,255,0.52)" }}
+              sx={{ color: "text.secondary" }}
             >
               1) Название, описание и подпись для общего бота (если названия
               похожи).

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Patch,
   Param,
   Post,
   Query,
@@ -29,6 +30,21 @@ export class ConversationsController {
     return this.service.list(req.user, companyId);
   }
 
+  @Get(":id/messages")
+  @ApiOperation({ summary: "Порционная подгрузка сообщений диалога" })
+  messages(
+    @Req() req: { user: { role?: string; companyId?: string | null } },
+    @Param("id") id: string,
+    @Query("companyId") companyId: string,
+    @Query("cursor") cursor?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.service.messages(req.user, companyId, id, {
+      cursor,
+      limit: Number(limit || 40),
+    });
+  }
+
   @Post("reply")
   @ApiOperation({ summary: "Ответить клиенту в Telegram из кабинета" })
   reply(
@@ -48,6 +64,21 @@ export class ConversationsController {
       body.text,
       body.attachments || [],
     );
+  }
+
+  @Patch(":id/mode")
+  @ApiOperation({ summary: "Ручное управление режимом ИИ/менеджера в диалоге" })
+  setMode(
+    @Req() req: { user: { role?: string; companyId?: string | null } },
+    @Param("id") id: string,
+    @Body()
+    body: {
+      companyId: string;
+      mode: "assistant" | "manager";
+      managerHoldMinutes?: number;
+    },
+  ) {
+    return this.service.setMode(req.user, body.companyId, id, body);
   }
 
   @Delete(":id")

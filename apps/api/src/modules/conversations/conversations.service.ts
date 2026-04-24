@@ -22,6 +22,8 @@ type ConversationReplyJob = {
   requestedByCompanyId?: string | null;
 };
 
+type ConversationMode = "assistant" | "manager";
+
 @Injectable()
 export class ConversationsService {
   private readonly log = new Logger(ConversationsService.name);
@@ -68,7 +70,7 @@ export class ConversationsService {
     const messages = ids.length
       ? await this.msgRepo.find({
           where: ids.map((id) => ({ conversationId: id })),
-          order: { createdAt: "ASC" },
+          order: { createdAt: "DESC" },
         })
       : [];
 
@@ -77,20 +79,11 @@ export class ConversationsService {
         (item) => item.conversationId === conversation.id,
       );
       const context = (conversation.context || {}) as Record<string, unknown>;
-      const timeline = messages
-        .filter((m) => m.conversationId === conversation.id)
-        .map((m) => ({
-          role: m.role,
-          text: m.text,
-          attachments: m.attachments || [],
-          createdAt: m.createdAt,
-        }));
-      const fallbackTimeline = [
-        { role: "assistant", text: "Здравствуйте! Как вас зовут?" },
-        ...(context.name ? [{ role: "user", text: String(context.name) }] : []),
-      ];
-      const safeTimeline = timeline.length ? timeline : fallbackTimeline;
-      const last = safeTimeline[safeTimeline.length - 1];
+      const convoMessages = messages.filter(
+        (m) => m.conversationId === conversation.id,
+      );
+      const latest = convoMessages[0];
+      const mode = this.resolveMode(conversation);
 
       return {
         id: conversation.id,
@@ -98,13 +91,127 @@ export class ConversationsService {
         telegramUserId: conversation.telegramUserId,
         createdAt: conversation.createdAt,
         state: conversation.state,
+        mode,
+        managerHoldUntil:
+          typeof context.managerHoldUntil === "string"
+            ? context.managerHoldUntil
+            : null,
+        managerTakeoverAt:
+          typeof context.managerTakeoverAt === "string"
+            ? context.managerTakeoverAt
+            : null,
+        messagesCount: convoMessages.length,
         lead,
         preview: String(
-          last?.text || lead?.need || context.name || "Новый диалог",
+          latest?.text || lead?.need || context.name || "Новый диалог",
         ),
-        timeline: safeTimeline,
+        lastMessage: latest
+          ? {
+              role: latest.role,
+              text: latest.text,
+              attachments: latest.attachments || [],
+              createdAt: latest.createdAt,
+            }
+          : null,
       };
     });
+  }
+
+  async messages(
+    user: { role?: string; companyId?: string | null },
+    companyId: string,
+    conversationId: string,
+    opts?: { cursor?: string; limit?: number },
+  ) {
+    this.assertCompanyAccess(user, companyId);
+    const conversation = await this.convRepo.findOne({
+      where: { id: conversationId, companyId },
+    });
+    if (!conversation) return { items: [], hasMore: false, nextCursor: null };
+    const limit = Math.max(10, Math.min(100, Number(opts?.limit || 40)));
+    const cursorDate = opts?.cursor ? new Date(opts.cursor) : null;
+    const cursorValid = cursorDate && !Number.isNaN(cursorDate.getTime());
+    const qb = this.msgRepo
+      .createQueryBuilder("m")
+      .where("m.companyId = :companyId", { companyId })
+      .andWhere("m.conversationId = :conversationId", { conversationId })
+      .orderBy("m.createdAt", "DESC")
+      .addOrderBy("m.id", "DESC")
+      .limit(limit + 1);
+    if (cursorValid) {
+      qb.andWhere("m.createdAt < :cursor", {
+        cursor: cursorDate?.toISOString(),
+      });
+    }
+    const rows = await qb.getMany();
+    const hasMore = rows.length > limit;
+    const slice = rows.slice(0, limit);
+    const ordered = slice.reverse();
+    const nextCursor = hasMore ? slice[slice.length - 1]?.createdAt || null : null;
+    return {
+      items: ordered.map((m) => ({
+        id: m.id,
+        role: m.role,
+        text: m.text,
+        attachments: m.attachments || [],
+        createdAt: m.createdAt,
+      })),
+      hasMore,
+      nextCursor: nextCursor ? nextCursor.toISOString() : null,
+    };
+  }
+
+  async setMode(
+    user: { role?: string; companyId?: string | null },
+    companyId: string,
+    conversationId: string,
+    body: {
+      mode: ConversationMode;
+      managerHoldMinutes?: number;
+    },
+  ) {
+    this.assertCompanyAccess(user, companyId);
+    const conversation = await this.convRepo.findOne({
+      where: { id: conversationId, companyId },
+    });
+    if (!conversation) return { ok: false };
+    const mode: ConversationMode =
+      body?.mode === "manager" ? "manager" : "assistant";
+    const holdMinutes = Math.max(
+      5,
+      Math.min(180, Number(body?.managerHoldMinutes || 25)),
+    );
+    const context = { ...(conversation.context || {}) } as Record<string, unknown>;
+    if (mode === "manager") {
+      context.managerTakeoverAt = new Date().toISOString();
+      context.managerHoldUntil = new Date(
+        Date.now() + holdMinutes * 60 * 1000,
+      ).toISOString();
+      context.managerEscalatedAt = context.managerEscalatedAt || new Date().toISOString();
+    } else {
+      delete context.managerTakeoverAt;
+      delete context.managerHoldUntil;
+      delete context.managerEscalatedAt;
+    }
+    conversation.context = context;
+    await this.convRepo.save(conversation);
+    return {
+      ok: true,
+      mode: this.resolveMode(conversation),
+      managerHoldUntil:
+        typeof context.managerHoldUntil === "string"
+          ? context.managerHoldUntil
+          : null,
+    };
+  }
+
+  private resolveMode(conversation: Conversation): ConversationMode {
+    const context = (conversation.context || {}) as Record<string, unknown>;
+    const holdUntilRaw = String(context.managerHoldUntil || "").trim();
+    if (!holdUntilRaw) return "assistant";
+    const holdUntil = new Date(holdUntilRaw);
+    if (Number.isNaN(holdUntil.getTime())) return "assistant";
+    return holdUntil.getTime() > Date.now() ? "manager" : "assistant";
   }
 
   async reply(

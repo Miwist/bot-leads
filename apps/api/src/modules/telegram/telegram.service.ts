@@ -58,6 +58,14 @@ export class TelegramService {
     return bot.companyId === "__shared__";
   }
 
+  private isManagerHoldActive(context: Record<string, unknown>): boolean {
+    const raw = String(context.managerHoldUntil || "").trim();
+    if (!raw) return false;
+    const until = new Date(raw);
+    if (Number.isNaN(until.getTime())) return false;
+    return until.getTime() > Date.now();
+  }
+
   private parseStartPayload(text: string): string {
     const direct = text.match(/^\/start\??=?(.+)$/i);
     if (direct?.[1]) {
@@ -636,9 +644,11 @@ export class TelegramService {
     c.context = { ...(c.context || {}), chatId };
     c = await this.conv.save(c);
     const ctx = (c.context || {}) as Record<string, unknown>;
+    const managerHoldActive = this.isManagerHoldActive(ctx);
 
     const send = async (replyText: string) => {
-      await this.sendChatMessage(bot, chatId, replyText);
+      const delivered = await this.sendChatMessage(bot, chatId, replyText);
+      if (!delivered) return;
       await this.messages.save(
         this.messages.create({
           conversationId: c.id,
@@ -653,7 +663,13 @@ export class TelegramService {
       replyText: string,
       replyMarkup: Record<string, unknown>,
     ) => {
-      await this.sendChatMessage(bot, chatId, replyText, replyMarkup);
+      const delivered = await this.sendChatMessage(
+        bot,
+        chatId,
+        replyText,
+        replyMarkup,
+      );
+      if (!delivered) return;
       await this.messages.save(
         this.messages.create({
           conversationId: c.id,
@@ -767,6 +783,7 @@ export class TelegramService {
     );
 
     const aiReply = async (state: string, ctxArg: Record<string, unknown>) => {
+      if (managerHoldActive) return null;
       if (!this.timewebAi.isEnabled()) return null;
       const targetCompanyId = this.isSharedBot(bot)
         ? String((ctxArg.targetCompanyId as string) || "")
@@ -807,6 +824,19 @@ export class TelegramService {
             attachments: [],
           }),
         );
+      }
+      if (
+        pieces.some((p) => p.role === "user") &&
+        this.isManagerHoldActive(ctx) &&
+        String(c.state || "") === "DONE"
+      ) {
+        c.context = {
+          ...ctx,
+          managerHoldUntil: null,
+          managerTakeoverAt: null,
+          managerEscalatedAt: null,
+        };
+        await this.conv.save(c);
       }
     };
 
@@ -871,7 +901,7 @@ export class TelegramService {
         c.context = {};
         await this.conv.save(c);
         await send(
-          "Привет! Напишите название компании, чтобы я показал подходящие варианты.",
+          "Здравствуйте! Напишите название компании, чтобы я показал подходящие варианты.",
         );
         return;
       }
@@ -1447,7 +1477,17 @@ export class TelegramService {
     chatId: number,
     text: string,
     replyMarkup?: Record<string, unknown>,
-  ) {
+  ): Promise<boolean> {
+    const safeText = String(text || "").trim();
+    if (!safeText) return false;
+    // Never allow internal operational alerts to leak to end-users.
+    if (/^\[(telegram delivery failed|escalation)\]/i.test(safeText)) {
+      logWarn(this.log, "telegram_blocked_internal_text_to_client", {
+        botId: bot.id,
+        chatId,
+      });
+      return false;
+    }
     try {
       const token = this.encryption.decrypt(bot.tokenEncrypted);
       await axios.post(`https://api.telegram.org/bot${token}/sendChatAction`, {
@@ -1457,9 +1497,10 @@ export class TelegramService {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
         chat_id: chatId,
-        text,
+        text: safeText,
         ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       });
+      return true;
     } catch (e) {
       const ax = axios.isAxiosError(e) ? e : null;
       const data = (ax?.response?.data || {}) as {
@@ -1467,20 +1508,39 @@ export class TelegramService {
         error_code?: number;
         parameters?: { retry_after?: number };
       };
+      const message = String(
+        ax?.message ||
+          (e instanceof Error ? e.message : "telegram_send_error") ||
+          "telegram_send_error",
+      );
+      const code = String((ax?.code as string) || "");
+      const stack =
+        e instanceof Error && e.stack
+          ? e.stack.split("\n").slice(0, 4).join(" | ")
+          : "";
       logError(this.log, "telegram_send_message_failed", {
         botId: bot.id,
         chatId,
-        message:
-          ax?.message ||
-          (e instanceof Error ? e.message : "telegram_send_error"),
+        message,
+        code,
         status: ax?.response?.status || null,
         errorCode: data.error_code || null,
         description: data.description || null,
         retryAfter: data.parameters?.retry_after || null,
+        stack,
       });
+      const adminChatId = this.adminTelegram.configuredChatId();
+      if (adminChatId && String(chatId) === adminChatId) {
+        logWarn(this.log, "telegram_admin_alert_target_matches_client_chat", {
+          botId: bot.id,
+          chatId,
+        });
+        return false;
+      }
       await this.adminTelegram.notify(
-        `[Telegram delivery failed] bot=${bot.id}, chat=${chatId}, status=${String(ax?.response?.status || "")}, error=${String(data.description || ax?.message || "send_failed")}`,
+        `[Telegram delivery failed] bot=${bot.id}, chat=${chatId}, status=${String(ax?.response?.status || "")}, error=${String(data.description || message || "send_failed")}, code=${code}`,
       );
+      return false;
     }
   }
 }
