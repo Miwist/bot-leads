@@ -26,6 +26,7 @@ const baseNav = [
   ["/dashboard/managers", "Менеджеры"],
   ["/dashboard/bots", "Боты"],
   ["/dashboard/billing", "Тарифы"],
+  ["/dashboard/help", "Инструкция"],
   ["/dashboard/feedback", "Поддержка"],
   ["/dashboard/settings", "Настройки"],
 ] as const;

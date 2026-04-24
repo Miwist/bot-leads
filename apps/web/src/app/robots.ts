@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next";
 
+export const dynamic = "force-static";
+export const revalidate = false;
+
 function getSiteUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, "");

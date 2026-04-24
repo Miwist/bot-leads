@@ -39,6 +39,12 @@ const featureCards = [
     text: "В карточке доступны статус, история диалога и ответственный менеджер.",
   },
 ];
+const beginnerBenefits = [
+  "Меньше страха перед первым запуском: есть пошаговый сценарий и подсказки.",
+  "Клиентам проще начать диалог: одна ссылка и понятный первый контакт.",
+  "Менеджеру не нужно вручную собирать базовые данные в переписке.",
+  "Даже без опыта можно начать с общего бота и перейти на своего позже.",
+];
 const metrics = [
   { value: "Telegram", label: "основной канал обработки входящих" },
   {
@@ -116,7 +122,12 @@ export default function Home() {
           <BrandLogo />
           <Stack direction="row" spacing={1.2} flexWrap="wrap">
             {!isAuthed && (
-              <Button component={Link} href="/login" color="inherit">
+              <Button
+                component={Link}
+                href="/login"
+                color="inherit"
+                className="landing-ghost-button"
+              >
                 Войти
               </Button>
             )}
@@ -124,6 +135,7 @@ export default function Home() {
               component={Link}
               href={isAuthed ? "/dashboard" : "/register"}
               variant="contained"
+                className="landing-primary-button"
               sx={{
                 background:
                   "linear-gradient(135deg, #7c5cff 0%, #5b8cff 50%, #00c2ff 100%)",
@@ -173,6 +185,7 @@ export default function Home() {
                 href={isAuthed ? "/dashboard" : "/register"}
                 size="large"
                 variant="contained"
+                className="landing-primary-button"
                 sx={{
                   px: 3,
                   py: 1.4,
@@ -188,6 +201,7 @@ export default function Home() {
                   href="/login"
                   size="large"
                   color="inherit"
+                  className="landing-ghost-button"
                 >
                   У меня уже есть аккаунт
                 </Button>
@@ -254,13 +268,16 @@ export default function Home() {
               >
                 <Box
                   sx={{
-                    width: 30,
-                    height: 30,
+                    width: { xs: 32, sm: 30 },
+                    height: { xs: 32, sm: 30 },
+                    minWidth: { xs: 32, sm: 30 },
+                    minHeight: { xs: 32, sm: 30 },
+                    flexShrink: 0,
                     borderRadius: "50%",
                     background: "linear-gradient(135deg, #7c5cff, #00c2ff)",
                     display: "grid",
                     placeItems: "center",
-                    fontSize: 13,
+                    fontSize: { xs: 13.5, sm: 13 },
                     fontWeight: 700,
                     mt: 0.2,
                   }}
@@ -402,6 +419,33 @@ export default function Home() {
           рассчитывается по условиям выбранного тарифа.
         </Typography>
         <Paper className="glass-card" sx={{ p: { xs: 1.2, md: 1.6 }, mt: 2 }}>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
+              }
+              aria-controls="faq-0-content"
+              id="faq-0-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Почему выбрать сервис, а не разрабатывать своего бота?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "text.secondary" }}>
+                Разработка собственного Telegram-бота обычно требует заметных
+                вложений на старте, времени команды и постоянной поддержки:
+                доработки, инфраструктура, исправления и контроль стабильности.
+                В AI Seller вы получаете готовое решение с уже встроенными
+                сценариями, кабинетом, статусами и инструментами обработки
+                заявок. При этом обработка гибкая: диалог может вести ИИ, а
+                менеджер в любой момент подключается и берёт обращение в работу.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
           <Accordion
             disableGutters
             sx={{ background: "transparent", boxShadow: "none" }}

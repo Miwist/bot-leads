@@ -18,6 +18,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { api, getCompanyId } from "@/lib/api";
 import { getStatusLabel } from "@/lib/ui";
@@ -258,6 +259,10 @@ export default function BotsPage() {
         <Paper className="glass-card span-6" sx={{ p: 3.2 }}>
           <Stack spacing={2}>
             <Typography variant="h5">Подключить свой Telegram-бот</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Если делаете это впервые, откройте «Инструкция» в меню: там шаги с
+              BotFather и проверкой подключения без лишних деталей.
+            </Typography>
             <TextField
               label="Токен бота"
               value={token}
@@ -277,6 +282,9 @@ export default function BotsPage() {
               }}
             >
               Подключить бота
+            </Button>
+            <Button component={Link} href="/dashboard/help" variant="outlined">
+              Открыть полную инструкцию
             </Button>
           </Stack>
         </Paper>

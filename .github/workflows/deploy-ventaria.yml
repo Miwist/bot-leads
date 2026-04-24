@@ -113,4 +113,15 @@ jobs:
             "${REMOTE}:${DEPLOY_HOME}/monitoring/grafana/provisioning/datasources/datasources.yml"
 
           ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
+            "mkdir -p '${DEPLOY_HOME}/monitoring/loki' '${DEPLOY_HOME}/monitoring/promtail'"
+
+          scp -o StrictHostKeyChecking=accept-new \
+            deploy/ventaria/monitoring/loki/config.yml \
+            "${REMOTE}:${DEPLOY_HOME}/monitoring/loki/config.yml"
+
+          scp -o StrictHostKeyChecking=accept-new \
+            deploy/ventaria/monitoring/promtail/config.yml \
+            "${REMOTE}:${DEPLOY_HOME}/monitoring/promtail/config.yml"
+
+          ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
             "cd '${DEPLOY_HOME}' && (docker compose pull postgres 2>/dev/null || true) && docker compose build api && docker compose up -d --remove-orphans"
