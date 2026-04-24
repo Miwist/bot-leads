@@ -36,7 +36,7 @@ export class TelegramWebhookService implements OnApplicationBootstrap {
       );
       return;
     }
-    await this.bots.ensureGlobalBotFromEnv();
+    await this.bots.ensureGlobalBotFromEnv({ emitLifecycleEvent: false });
     const list = await this.bots.findAllActive();
     this.log.log(
       `Режим webhook: подписываю ${list.length} активных ботов на ${base}/telegram/webhook`,

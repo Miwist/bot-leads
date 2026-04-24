@@ -41,6 +41,19 @@ export class TimewebAiService {
   /**
    * Одна реплика ассистента для шага сбора заявки в Telegram.
    */
+  private shouldUseFormalAddress(input: {
+    communicationTone?: string | null;
+    assistantInstruction?: string | null;
+  }): boolean {
+    const text = `${String(input.communicationTone || "")}\n${String(input.assistantInstruction || "")}`.toLowerCase();
+    if (!text.trim()) return true;
+    // Явный override в настройках: владелец сам задал общение "на ты".
+    if (/(на\s+ты|обращайс[яь]\s+на\s+ты|на\s+\"?ты\"?)/i.test(text)) {
+      return false;
+    }
+    return true;
+  }
+
   async salesAssistantReply(input: {
     state: string;
     context: Record<string, unknown>;
@@ -60,6 +73,10 @@ export class TimewebAiService {
     const instruction = String(
       input.companyProfile?.assistantInstruction || "",
     ).trim();
+    const useFormalAddress = this.shouldUseFormalAddress({
+      communicationTone: tone,
+      assistantInstruction: instruction,
+    });
     const stateGuide =
       input.state === "ASK_NAME"
         ? "Сейчас можно только вежливо попросить имя клиента. Не проси телефон, адрес или иные данные."
@@ -73,6 +90,9 @@ export class TimewebAiService {
 
     const prompt = [
       "Ты профессиональный менеджер по продажам в Telegram: естественный, вежливый, без роботизированных фраз.",
+      useFormalAddress
+        ? "По умолчанию обращайся к клиенту на «Вы» и используй уважительную форму."
+        : "Разрешено обращение на «ты», так как это явно задано в настройках владельца.",
       tone ? `Тон общения (строго соблюдай): ${tone}.` : "",
       instruction
         ? `Дополнительные правила от владельца бизнеса (соблюдай приоритетно, если не противоречат безопасности):\n${instruction}`

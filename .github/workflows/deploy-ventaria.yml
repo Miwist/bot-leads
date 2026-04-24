@@ -93,4 +93,18 @@ jobs:
             "${REMOTE}:${DEPLOY_HOME}/docker-compose.yml"
 
           ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
+            "mkdir -p '${DEPLOY_HOME}/monitoring/prometheus'"
+
+          scp -o StrictHostKeyChecking=accept-new \
+            deploy/ventaria/monitoring/prometheus/prometheus.yml \
+            "${REMOTE}:${DEPLOY_HOME}/monitoring/prometheus/prometheus.yml"
+
+          ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
+            "mkdir -p '${DEPLOY_HOME}/monitoring/grafana/provisioning/datasources'"
+
+          scp -o StrictHostKeyChecking=accept-new \
+            deploy/ventaria/monitoring/grafana/provisioning/datasources/datasources.yml \
+            "${REMOTE}:${DEPLOY_HOME}/monitoring/grafana/provisioning/datasources/datasources.yml"
+
+          ssh -o StrictHostKeyChecking=accept-new "${REMOTE}" \
             "cd '${DEPLOY_HOME}' && (docker compose pull postgres 2>/dev/null || true) && docker compose build api && docker compose up -d --remove-orphans"

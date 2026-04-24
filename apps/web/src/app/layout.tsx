@@ -3,11 +3,61 @@ import type { Metadata } from "next";
 import "./globals.scss";
 import MuiAppProvider from "@/components/MuiAppProvider";
 
+const defaultTitle = "Ventaria — AI Seller для заявок из Telegram";
+const defaultDescription =
+  "Решение для малого и среднего бизнеса, где обращения приходят в Telegram. Бот уточняет запрос, собирает контакты, создает заявку и передает ее в работу менеджеру.";
+
+function resolveMetadataBase(): URL {
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (fromEnv) {
+    try {
+      return new URL(fromEnv);
+    } catch {
+      // ignore invalid URL
+    }
+  }
+  if (process.env.VERCEL_URL) {
+    return new URL(`https://${process.env.VERCEL_URL}`);
+  }
+  return new URL("http://localhost:3000");
+}
+
+const shareImage = {
+  url: "/ventaria.png",
+  width: 1536,
+  height: 1024,
+  alt: "Ventaria",
+  type: "image/png",
+} as const;
+
+const faviconHref = "/ventaria.png?v=2";
+
 export const metadata: Metadata = {
+  metadataBase: resolveMetadataBase(),
+  applicationName: "Ventaria",
+  title: {
+    default: defaultTitle,
+    template: "%s — Ventaria",
+  },
+  description: defaultDescription,
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: [{ url: faviconHref, type: "image/png" }],
+    shortcut: [faviconHref],
+    apple: "/ventaria.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    siteName: "Ventaria",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [shareImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+    images: [shareImage.url],
   },
 };
 

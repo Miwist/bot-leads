@@ -11,6 +11,8 @@ import { ConversationsService } from "./conversations.service";
 import { ConversationsController } from "./conversations.controller";
 import { BotsModule } from "../bots/bots.module";
 import { S3StorageService } from "../../common/s3-storage.service";
+import { RabbitMqService } from "../../common/rabbitmq.service";
+import { ConversationsReplyQueueConsumer } from "./conversations-reply-queue.consumer";
 
 @Module({
   imports: [
@@ -23,7 +25,12 @@ import { S3StorageService } from "../../common/s3-storage.service";
     ]),
     BotsModule,
   ],
-  providers: [ConversationsService, S3StorageService],
+  providers: [
+    ConversationsService,
+    S3StorageService,
+    RabbitMqService,
+    ConversationsReplyQueueConsumer,
+  ],
   controllers: [ConversationsController],
 })
 export class ConversationsModule {}

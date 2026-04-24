@@ -20,6 +20,8 @@ import { LeadsService } from "../leads/leads.service";
 import { BillingService } from "../billing/billing.service";
 import { TimewebAiService } from "../ai/timeweb-ai.service";
 import { logError, logInfo, logWarn } from "../../common/logging";
+import { ManagersService } from "../managers/managers.service";
+import { AdminTelegramService } from "../../common/admin-telegram.service";
 
 const execFileAsync = promisify(execFile);
 const MAX_TG_DOWNLOAD_BYTES = 18 * 1024 * 1024;
@@ -39,6 +41,8 @@ export class TelegramService {
     private billing: BillingService,
     private timewebAi: TimewebAiService,
     private encryption: EncryptionService,
+    private managers: ManagersService,
+    private adminTelegram: AdminTelegramService,
   ) {}
 
   private allow(uid: string) {
@@ -69,6 +73,26 @@ export class TelegramService {
       .trim()
       .toLowerCase();
     return /^\/(getmyinfo|myid|id)(?:@\w+)?$/.test(cmd);
+  }
+
+  private asksForManager(text: string): boolean {
+    const t = String(text || "").trim().toLowerCase();
+    if (!t) return false;
+    return /(менедж|оператор|человек|жив(ой|ого)|сотрудник|переключи|позови)/i.test(
+      t,
+    );
+  }
+
+  private async notifyManagerByChatId(
+    bot: BotConnection,
+    managerChatId: string,
+    text: string,
+  ) {
+    const token = this.encryption.decrypt(bot.tokenEncrypted);
+    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+      chat_id: managerChatId,
+      text,
+    });
   }
 
   private buildMyInfoText(input: {
@@ -673,6 +697,67 @@ export class TelegramService {
     );
     if (userTextResolved === null) return;
     const userTextForFlow = userTextResolved;
+
+    const currentCompanyIdForEscalation = this.isSharedBot(bot)
+      ? String((ctx.targetCompanyId as string) || c.companyId || "")
+      : bot.companyId;
+    if (
+      !rawText.startsWith("/start") &&
+      this.asksForManager(userTextForFlow) &&
+      currentCompanyIdForEscalation
+    ) {
+      await this.messages.save(
+        this.messages.create({
+          conversationId: c.id,
+          companyId: c.companyId,
+          role: "user",
+          text: userTextForFlow,
+          attachments: [],
+        }),
+      );
+      const manager = await this.managers.next(currentCompanyIdForEscalation);
+      const managerContact = manager?.chatId ? String(manager.chatId) : "";
+      const managerText = [
+        "Эскалация из Telegram-бота.",
+        `Компания: ${currentCompanyIdForEscalation}`,
+        `Диалог: ${c.id}`,
+        `Пользователь TG: ${fromId}`,
+        `Запрос: ${userTextForFlow}`,
+      ].join("\n");
+      let managerNotified = false;
+      if (managerContact) {
+        try {
+          await this.notifyManagerByChatId(bot, managerContact, managerText);
+          managerNotified = true;
+        } catch (err) {
+          logError(this.log, "manager_notify_failed", {
+            conversationId: c.id,
+            companyId: currentCompanyIdForEscalation,
+            managerId: manager?.id || null,
+            message: err instanceof Error ? err.message : "notify_error",
+          });
+        }
+      }
+      await this.adminTelegram.notify(
+        `[Escalation] company=${currentCompanyIdForEscalation}, conversation=${c.id}, managerNotified=${managerNotified}`,
+      );
+      await send(
+        managerNotified
+          ? "Передал(а) запрос менеджеру. Он подключится в ближайшее время."
+          : "Передал(а) запрос старшему менеджеру. Если ответ задержится, мы свяжемся с вами дополнительно.",
+      );
+      c.context = {
+        ...ctx,
+        managerEscalatedAt: new Date().toISOString(),
+      };
+      await this.conv.save(c);
+      logInfo(this.log, "manager_escalation_requested", {
+        conversationId: c.id,
+        companyId: currentCompanyIdForEscalation,
+        managerNotified,
+      });
+      return;
+    }
 
     const yesAnswer = /^(да|ага|угу|ок|окей|конечно|покажи|давай)$/i.test(
       userTextForFlow,
@@ -1393,6 +1478,9 @@ export class TelegramService {
         description: data.description || null,
         retryAfter: data.parameters?.retry_after || null,
       });
+      await this.adminTelegram.notify(
+        `[Telegram delivery failed] bot=${bot.id}, chat=${chatId}, status=${String(ax?.response?.status || "")}, error=${String(data.description || ax?.message || "send_failed")}`,
+      );
     }
   }
 }

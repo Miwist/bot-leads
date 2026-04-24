@@ -64,6 +64,38 @@ docker compose -f infra/docker-compose.yml up --build
 - **Grafana**: Dashboards/Explore -> datasource `Prometheus` для метрик API
 - **API метрики** доступны по `GET /metrics` (в compose это `http://localhost:${API_PUBLISH_PORT}/metrics`)
 
+### RabbitMQ и Telegram: как читать логи
+
+RabbitMQ UI и Grafana решают разные задачи:
+
+- **RabbitMQ UI** (`http://localhost:15672`) — состояние очередей: `Ready`, `Unacked`, `Consumers`, rate.
+- **Grafana/Loki** — человекочитаемый аудит работы очереди: что поставлено, что обработано, где ошибка.
+
+В Grafana откройте **Explore** -> datasource **Loki** и используйте фильтр по API:
+
+```logql
+{compose_service="api"}
+```
+
+Дальше добавляйте поиск по событиям:
+
+| Где искать | Пример запроса в Loki | Что означает |
+| --- | --- | --- |
+| Постановка задачи в очередь | `{compose_service="api"} |= "chat_reply_queued"` | Ответ менеджера поставлен в RabbitMQ |
+| Начало обработки | `{compose_service="api"} |= "chat_reply_processing"` | Consumer взял задачу в работу |
+| Успешная отправка | `{compose_service="api"} |= "chat_reply_sent"` | Сообщение/вложения успешно ушли в Telegram |
+| Ошибка отправки | `{compose_service="api"} |= "chat_reply_send_failed"` | Ошибка при вызове Telegram API |
+| Ошибка публикации в очередь | `{compose_service="api"} |= "rabbitmq_publish_failed"` | Не удалось отправить задачу в RabbitMQ |
+| Ошибка обработки consumer | `{compose_service="api"} |= "rabbitmq_consume_failed"` | Consumer не смог обработать сообщение |
+| Переключение webhook -> polling | `{compose_service="api"} |= "Webhook снят перед polling"` | Перед polling вызван `deleteWebhook`, конфликтов быть не должно |
+
+Практика поиска проблем:
+
+1. Смотрите `chat_reply_queued` -> есть ли затем `chat_reply_processing`.
+2. Если processing есть, но нет `chat_reply_sent`, ищите `chat_reply_send_failed`.
+3. Если нет даже queued, проверяйте `rabbitmq_publish_failed`.
+4. В RabbitMQ UI смотрите рост `Ready`/`Unacked` (если растут, consumer не успевает или падает).
+
 ## Белый экран во фронте (MUI + Next.js)
 
 В корневой layout добавлены **`AppRouterCacheProvider`** (`@mui/material-nextjs`) и **`ThemeProvider` + `CssBaseline`**: без этого Emotion/MUI в App Router часто рендерят «пустую» страницу. В `apps/web/.npmrc` включён **`legacy-peer-deps`** из‑за peer `next@15` у `@mui/material-nextjs` при использовании Next 16 (в Docker `npm ci` читает этот файл).
