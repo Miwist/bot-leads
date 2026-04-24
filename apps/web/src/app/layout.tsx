@@ -24,10 +24,10 @@ function resolveMetadataBase(): URL {
 }
 
 const shareImage = {
-  url: "/icon.svg",
-  width: 1536,
-  height: 1024,
-  alt: "Ventaria",
+  url: "/ventaria.png",
+  width: 1200,
+  height: 630,
+  alt: "Ventaria — AI Seller для заявок из Telegram",
   type: "image/png",
 } as const;
 
@@ -98,6 +98,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ru_RU",
     siteName: "Ventaria",
+    url: "/",
     title: defaultTitle,
     description: defaultDescription,
     images: [shareImage],
