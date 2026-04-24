@@ -92,6 +92,27 @@ services:
         protocol: tcp
     networks: [appnet]
 
+  loki:
+    image: grafana/loki:3.1.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./monitoring/loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    networks: [appnet]
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
+      - promtail_positions:/tmp
+    depends_on:
+      - loki
+    networks: [appnet]
+
   grafana:
     image: grafana/grafana:11.1.0
     restart: unless-stopped
@@ -102,6 +123,7 @@ services:
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://ai.ventaria.ru/grafana/}
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     depends_on:
+      - loki
       - prometheus
     volumes:
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
@@ -119,4 +141,6 @@ networks:
 volumes:
   postgres_data:
   prometheus_data:
+  loki_data:
+  promtail_positions:
   grafana_data:

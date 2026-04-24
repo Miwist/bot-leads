@@ -2,11 +2,14 @@
   box-sizing: border-box;
 }
 :root {
-  --app-bg: linear-gradient(180deg, #f5f7fb 0%, #edf1f8 52%, #f7f9fd 100%);
-  --app-text: #121826;
-  --panel-bg: rgba(255, 255, 255, 0.9);
-  --panel-border: rgba(17, 24, 39, 0.08);
-  --sidebar-bg: rgba(255, 255, 255, 0.86);
+  --app-bg:
+    radial-gradient(circle at top left, rgba(124, 92, 255, 0.1), transparent 28%),
+    radial-gradient(circle at top right, rgba(0, 194, 255, 0.08), transparent 24%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4ff 50%, #f9fbff 100%);
+  --app-text: #162033;
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-border: rgba(60, 76, 103, 0.14);
+  --sidebar-bg: rgba(255, 255, 255, 0.88);
 }
 [data-app-theme="dark"] {
   --app-bg:
@@ -59,22 +62,38 @@ textarea {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 22px 24px 32px;
-  padding-bottom: max(32px, env(safe-area-inset-bottom, 0px));
+  padding: 26px 28px 40px;
+  padding-bottom: max(40px, env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
 }
 .glass-card {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 14px 34px rgba(23, 35, 58, 0.12);
   border-radius: 16px;
 }
 .gradient-text {
-  background: linear-gradient(135deg, #ffffff 0%, #b9c4ff 35%, #9fe4ff 100%);
+  background: linear-gradient(135deg, #2647c7 0%, #6f48ea 38%, #0f9fd7 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+.landing-primary-button {
+  color: #fff !important;
+}
+.landing-ghost-button {
+  color: #fff !important;
+  background: rgba(17, 24, 39, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.landing-ghost-button:hover {
+  background: rgba(17, 24, 39, 0.75);
+}
+[data-app-theme="dark"] .landing-ghost-button {
+  color: #f5f7fb !important;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 .hero-grid {
   display: grid;
@@ -94,7 +113,7 @@ textarea {
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 .dashboard-grid > .span-3 {
   grid-column: span 3;
@@ -151,7 +170,7 @@ textarea {
   .dashboard-main {
     flex: 1;
     min-height: 0;
-    padding: 16px 16px max(20px, env(safe-area-inset-bottom, 0px));
+    padding: 18px 18px max(24px, env(safe-area-inset-bottom, 0px));
     overflow: auto;
   }
 }

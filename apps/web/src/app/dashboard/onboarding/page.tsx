@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Alert,
-  Box,
   Button,
   CircularProgress,
   Paper,
@@ -46,6 +45,7 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [clientDisambiguation, setClientDisambiguation] = useState("");
+  const [botMode, setBotMode] = useState<"shared" | "custom">("shared");
 
   const [communicationTone, setCommunicationTone] = useState("");
   const [botObjective, setBotObjective] = useState("");
@@ -69,6 +69,7 @@ export default function OnboardingPage() {
       setWelcomeMessage(String(company.welcomeMessage || ""));
       setDataFields(company.dataFields?.length ? company.dataFields : []);
       setTimezone(company.timezone || "Europe/Moscow");
+      setBotMode(company.botMode === "custom" ? "custom" : "shared");
     }
   }, [company]);
 
@@ -106,6 +107,7 @@ export default function OnboardingPage() {
           name: name.trim(),
           description: description.trim() || null,
           clientDisambiguation: clientDisambiguation.trim() || null,
+          botMode,
           timezone: "Europe/Moscow",
           dataFields: [],
         });
@@ -117,6 +119,7 @@ export default function OnboardingPage() {
           name: name.trim(),
           description: description.trim() || null,
           clientDisambiguation: clientDisambiguation.trim() || null,
+          botMode,
         });
         await refresh({ silent: true });
       }
@@ -250,8 +253,8 @@ export default function OnboardingPage() {
         Подключение
       </Typography>
       <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.52)" }}>
-        Компания → настройка бота → поля заявки. Всё можно позже изменить в
-        разделе «Настройки».
+        Компания, режим бота и сценарий. Всё можно позже изменить в разделе
+        «Настройки».
       </Typography>
 
       <Stepper activeStep={activeStep} alternativeLabel sx={{ py: 1 }}>
@@ -273,10 +276,52 @@ export default function OnboardingPage() {
               variant="caption"
               sx={{ color: "rgba(255,255,255,0.48)" }}
             >
-              Если вы пользуетесь общим Telegram-ботом, у клиентов с таким же
-              названием компании должен быть способ отличить вас — короткая
-              подпись показывается в списке и на кнопке.
+              Сначала выберите, как хотите подключиться: через общий бот или
+              через своего бота. Это можно изменить позже на странице «Боты».
             </Typography>
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ color: "text.secondary" }}>
+                Режим подключения
+              </Typography>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <Button
+                  variant={botMode === "shared" ? "contained" : "outlined"}
+                  onClick={() => setBotMode("shared")}
+                >
+                  Общий бот (быстрый старт)
+                </Button>
+                <Button
+                  variant={botMode === "custom" ? "contained" : "outlined"}
+                  onClick={() => setBotMode("custom")}
+                >
+                  Свой бот (личный бренд)
+                </Button>
+              </Stack>
+            </Stack>
+            {botMode === "custom" ? (
+              <Alert severity="info">
+                <strong>Как подключить своего бота (кратко и по шагам):</strong>
+                <br />
+                1) Откройте Telegram и найдите <strong>@BotFather</strong>.
+                <br />
+                2) Нажмите <strong>/newbot</strong>, задайте имя и username
+                бота.
+                <br />
+                3) BotFather пришлёт токен — скопируйте его сразу в безопасное
+                место.
+                <br />
+                4) В кабинете откройте «Боты» → «Подключить свой Telegram-бот» и
+                вставьте токен.
+                <br />
+                5) Проверьте, что в блоке «Подключённые боты» статус стал
+                «Активен».
+              </Alert>
+            ) : (
+              <Alert severity="success">
+                Для старта ничего создавать не нужно: выбирайте общий бот,
+                настраивайте сценарий и делитесь готовой ссылкой с клиентами.
+              </Alert>
+            )}
             <TextField
               label="Название компании"
               required
@@ -298,7 +343,7 @@ export default function OnboardingPage() {
               value={clientDisambiguation}
               onChange={(e) => setClientDisambiguation(e.target.value)}
               placeholder="Например: выставка SkrepkaExpo, стенд C4 · Москва"
-              helperText="Необязательно, если название уникальное. Для своего бота не используется."
+              helperText="Важно для общего бота: помогает клиенту выбрать именно вас."
             />
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button
@@ -310,6 +355,9 @@ export default function OnboardingPage() {
               </Button>
               <Button component={Link} href="/dashboard/settings" size="small">
                 Расширенные настройки
+              </Button>
+              <Button component={Link} href="/dashboard/help" size="small">
+                Пошаговая инструкция
               </Button>
             </Stack>
           </Stack>
@@ -327,7 +375,8 @@ export default function OnboardingPage() {
               sx={{ color: "rgba(255,255,255,0.48)" }}
             >
               Приветствие после /start действует только у своего Telegram-бота.
-              В общем боте клиент сначала выбирает компанию из списка.
+              В общем боте клиент сначала выбирает компанию из списка, а затем
+              начинается диалог.
             </Typography>
             <TextField
               label="Тон общения"
@@ -514,6 +563,9 @@ export default function OnboardingPage() {
                 variant="outlined"
               >
                 Настройки
+              </Button>
+              <Button component={Link} href="/dashboard/help" variant="outlined">
+                Полный гайд
               </Button>
             </Stack>
           </Stack>
