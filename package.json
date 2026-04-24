@@ -12,10 +12,12 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.8",
     "prettier": "^3.4.2"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1034.0",
+    "amqplib": "^1.0.3",
     "form-data": "^4.0.5",
     "nodemailer": "^8.0.5",
     "prom-client": "^15.1.3",

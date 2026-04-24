@@ -25,6 +25,25 @@ services:
       retries: 12
     networks: [appnet]
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - target: 5672
+        published: ${RABBITMQ_PUBLISH_PORT:-5672}
+        host_ip: ${RABBITMQ_BIND:-127.0.0.1}
+        protocol: tcp
+      - target: 15672
+        published: ${RABBITMQ_UI_PUBLISH_PORT:-15672}
+        host_ip: ${RABBITMQ_BIND:-127.0.0.1}
+        protocol: tcp
+    networks: [appnet]
+
   api:
     build:
       context: ./api
@@ -34,6 +53,8 @@ services:
       - .env
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     ports:
       - target: ${API_PORT:-3001}
@@ -52,8 +73,50 @@ services:
       start_period: 40s
     networks: [appnet]
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - target: 9090
+        published: ${PROMETHEUS_PUBLISH_PORT:-9090}
+        host_ip: ${PROMETHEUS_BIND:-127.0.0.1}
+        protocol: tcp
+    networks: [appnet]
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://ai.ventaria.ru/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - target: 3000
+        published: ${GRAFANA_PUBLISH_PORT:-3060}
+        host_ip: ${GRAFANA_BIND:-127.0.0.1}
+        protocol: tcp
+    networks: [appnet]
+
 networks:
   appnet:
 
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

@@ -11,6 +11,16 @@ import axios from "axios";
 import { EncryptionService } from "../../common/encryption.service";
 import { S3StorageService } from "../../common/s3-storage.service";
 import { logError, logInfo } from "../../common/logging";
+import { RabbitMqService } from "../../common/rabbitmq.service";
+
+type ConversationReplyJob = {
+  companyId: string;
+  conversationId: string;
+  text: string;
+  attachments: Array<{ name?: string; data?: string }>;
+  requestedByRole?: string;
+  requestedByCompanyId?: string | null;
+};
 
 @Injectable()
 export class ConversationsService {
@@ -24,6 +34,7 @@ export class ConversationsService {
     private botsRepo: Repository<BotConnection>,
     private encryption: EncryptionService,
     private storage: S3StorageService,
+    private rabbit: RabbitMqService,
   ) {}
 
   private assertCompanyAccess(
@@ -104,6 +115,52 @@ export class ConversationsService {
     attachments: Array<{ name?: string; data?: string }> = [],
   ) {
     this.assertCompanyAccess(user, companyId);
+    const messageText = text.trim();
+    if (!messageText && !attachments.length) return { ok: false };
+    const payload: ConversationReplyJob = {
+      companyId,
+      conversationId,
+      text: messageText,
+      attachments,
+      requestedByRole: user.role,
+      requestedByCompanyId: user.companyId ?? null,
+    };
+
+    const queueName = this.rabbit.getConversationReplyQueue();
+    if (!this.rabbit.isEnabled()) {
+      await this.processReplyJob(payload);
+      return { ok: true, queued: false };
+    }
+
+    const queued = await this.rabbit.publish(queueName, payload);
+    if (!queued) {
+      logError(this.log, "chat_reply_queue_publish_failed_fallback_sync", {
+        companyId,
+        conversationId,
+      });
+      await this.processReplyJob(payload);
+      return { ok: true, queued: false };
+    }
+
+    logInfo(this.log, "chat_reply_queued", {
+      companyId,
+      conversationId,
+      hasText: Boolean(messageText),
+      attachmentsCount: attachments.length,
+      queue: queueName,
+    });
+    return { ok: true, queued: true };
+  }
+
+  async processReplyJob(job: ConversationReplyJob) {
+    const { companyId, conversationId } = job;
+    this.assertCompanyAccess(
+      {
+        role: job.requestedByRole,
+        companyId: job.requestedByCompanyId,
+      },
+      companyId,
+    );
     const conversation = await this.convRepo.findOne({
       where: { id: conversationId, companyId },
     });
@@ -116,8 +173,17 @@ export class ConversationsService {
     const chatId = Number(chatIdRaw);
     if (!Number.isFinite(chatId)) return { ok: false };
     const token = this.encryption.decrypt(bot.tokenEncrypted);
-    const messageText = text.trim();
-    if (!messageText && !attachments.length) return { ok: false };
+    const messageText = String(job.text || "").trim();
+    const attachments = Array.isArray(job.attachments) ? job.attachments : [];
+
+    logInfo(this.log, "chat_reply_processing", {
+      companyId,
+      conversationId,
+      chatId,
+      hasText: Boolean(messageText),
+      attachmentsCount: attachments.length,
+    });
+
     if (messageText) {
       try {
         await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {

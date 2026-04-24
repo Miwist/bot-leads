@@ -27,7 +27,10 @@ export class BotsService {
    * Общий бот из env: создаёт/обновляет запись в `bot_connections`, чтобы polling/webhook
    * всегда поднимали его при наличии GLOBAL_BOT_TOKEN.
    */
-  async ensureGlobalBotFromEnv(): Promise<{ ok: boolean; reason?: string }> {
+  async ensureGlobalBotFromEnv(opts?: {
+    emitLifecycleEvent?: boolean;
+  }): Promise<{ ok: boolean; reason?: string }> {
+    const emitLifecycleEvent = opts?.emitLifecycleEvent ?? true;
     const token = this.config.get<string>("GLOBAL_BOT_TOKEN")?.trim();
     const companyId = "__shared__";
     const secret =
@@ -35,10 +38,19 @@ export class BotsService {
     if (!token) {
       return { ok: false, reason: "no_token" };
     }
-    const me = await axios.get<{ result?: { username?: string } }>(
-      `https://api.telegram.org/bot${token}/getMe`,
-    );
-    const botUsername = me.data.result?.username;
+    let botUsername = "";
+    try {
+      const me = await axios.get<{ result?: { username?: string } }>(
+        `https://api.telegram.org/bot${token}/getMe`,
+      );
+      botUsername = String(me.data.result?.username || "");
+    } catch (error) {
+      this.log.error(
+        "GLOBAL_BOT_TOKEN: не удалось получить getMe, пропускаю регистрацию общего бота",
+        error instanceof Error ? error.stack : String(error),
+      );
+      return { ok: false, reason: "telegram_unreachable" };
+    }
     if (!botUsername) {
       this.log.error("GLOBAL_BOT_TOKEN: getMe не вернул username");
       return { ok: false, reason: "no_username" };
@@ -58,7 +70,9 @@ export class BotsService {
         },
       );
       const row = await this.repo.findOne({ where: { id: existing.id } });
-      if (row) this.events.emit(TELEGRAM_BOT_CONNECTED_EVENT, row);
+      if (row && emitLifecycleEvent) {
+        this.events.emit(TELEGRAM_BOT_CONNECTED_EVENT, row);
+      }
       this.log.log(`Общий бот обновлён: @${botUsername}`);
       return { ok: true };
     }
@@ -71,7 +85,9 @@ export class BotsService {
         webhookSecret: secret,
       }),
     );
-    this.events.emit(TELEGRAM_BOT_CONNECTED_EVENT, saved);
+    if (emitLifecycleEvent) {
+      this.events.emit(TELEGRAM_BOT_CONNECTED_EVENT, saved);
+    }
     this.log.log(`Общий бот зарегистрирован: @${botUsername} (${saved.id})`);
     return { ok: true };
   }

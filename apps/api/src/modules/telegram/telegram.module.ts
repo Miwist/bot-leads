@@ -14,12 +14,15 @@ import {
   ConversationMessage,
 } from "../../database/entities";
 import { AiModule } from "../ai/ai.module";
+import { ManagersModule } from "../managers/managers.module";
+import { AdminTelegramService } from "../../common/admin-telegram.service";
 @Module({
   imports: [
     AiModule,
     BotsModule,
     LeadsModule,
     BillingModule,
+    ManagersModule,
     TypeOrmModule.forFeature([Conversation, Company, ConversationMessage]),
   ],
   controllers: [TelegramController],
@@ -28,6 +31,7 @@ import { AiModule } from "../ai/ai.module";
     TelegramWebhookService,
     TelegramPollingService,
     TelegramTransportListener,
+    AdminTelegramService,
   ],
 })
 export class TelegramModule {}
