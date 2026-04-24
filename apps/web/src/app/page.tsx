@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import {
   Accordion,
   AccordionDetails,
@@ -46,6 +47,32 @@ const metrics = [
   },
   { value: "1 кабинет", label: "бот, менеджеры, заявки и диалоги" },
 ];
+const faqItems = [
+  {
+    q: "Почему выбрать сервис, а не разрабатывать своего бота?",
+    a: "Собственная разработка Telegram-бота обычно требует бюджета на создание и регулярные расходы на поддержку: инфраструктура, обновления, исправления и контроль стабильности. Ventaria дает готовое решение с кабинетом, статусами и сценариями работы с заявками. Обработку можно выстроить гибко: сначала ИИ, при необходимости — подключение менеджера в диалог.",
+  },
+  {
+    q: "Сложно ли запустить сервис?",
+    a: "Базовая настройка обычно занимает 10-15 минут: создание компании, подключение бота и заполнение сценария.",
+  },
+  {
+    q: "Нужен ли собственный Telegram-бот?",
+    a: "Можно использовать общий бот или подключить собственный токен в личном кабинете.",
+  },
+  {
+    q: "Куда попадают обращения клиентов?",
+    a: "В раздел заявок: с контактами, статусом, ответственным менеджером и историей диалога.",
+  },
+  {
+    q: "Может ли бот отправлять материалы клиенту?",
+    a: "Да, поддерживается отправка фото, видео и файлов, добавленных в настройках компании.",
+  },
+  {
+    q: "Что происходит при исчерпании лимита тарифа?",
+    a: "Дальнейшие заявки учитываются как сверхлимитные в соответствии с тарифом, выбранным в кабинете.",
+  },
+];
 
 export default function Home() {
   const router = useRouter();
@@ -60,6 +87,25 @@ export default function Home() {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Script
+        id="ld-json-faq"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqItems.map((item) => ({
+              "@type": "Question",
+              name: item.q,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: item.a,
+              },
+            })),
+          }),
+        }}
+      />
       <Paper className="glass-card" sx={{ p: { xs: 3, md: 3.5 }, mb: 3 }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
@@ -246,6 +292,26 @@ export default function Home() {
           </Stack>
         </Paper>
       </div>
+      <Box sx={{ py: 4 }}>
+        <Paper className="glass-card" sx={{ p: { xs: 3, md: 3.6 } }}>
+          <Stack spacing={1.4}>
+            <Typography variant="h4">
+              Как создать Telegram-бота для продаж без разработки с нуля
+            </Typography>
+            <Typography sx={{ color: "text.secondary" }}>
+              Если вы ищете, как создать Telegram-бота для бизнеса, обычно есть два
+              пути: запускать долгую кастомную разработку или использовать готовый
+              сервис. Ventaria закрывает типовые задачи продаж и обработки входящих
+              заявок: бот собирает данные клиента, ИИ помогает с первичным диалогом,
+              а менеджер подключается, когда это нужно по процессу.
+            </Typography>
+            <Typography sx={{ color: "text.secondary" }}>
+              Такой подход помогает быстрее стартовать, снизить технические риски и
+              не держать отдельную команду на постоянную поддержку бота.
+            </Typography>
+          </Stack>
+        </Paper>
+      </Box>
       <Box id="plans" sx={{ py: 6 }}>
         <Typography variant="h3" sx={{ mb: 2 }}>
           Тарифы
@@ -408,6 +474,32 @@ export default function Home() {
           Частые вопросы
         </Typography>
         <Paper className="glass-card" sx={{ p: { xs: 1.2, md: 1.6 } }}>
+          <Accordion
+            disableGutters
+            sx={{ background: "transparent", boxShadow: "none" }}
+          >
+            <AccordionSummary
+              expandIcon={
+                <ExpandMoreIcon sx={{ color: "text.secondary" }} />
+              }
+              aria-controls="faq-0-content"
+              id="faq-0-header"
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                Почему выбрать сервис, а не разрабатывать своего бота?
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography sx={{ color: "text.secondary" }}>
+                Собственная разработка Telegram-бота обычно требует бюджета на
+                создание и регулярные расходы на поддержку: инфраструктура,
+                обновления, исправления и контроль стабильности. Ventaria дает
+                готовое решение с кабинетом, статусами и сценариями работы с
+                заявками. Обработку можно выстроить гибко: сначала ИИ, при
+                необходимости — подключение менеджера в диалог.
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
           <Accordion
             disableGutters
             sx={{ background: "transparent", boxShadow: "none" }}
