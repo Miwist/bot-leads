@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, getCompanyId } from "@/lib/api";
+import { api, getCompanyId, setCompanyId } from "@/lib/api";
 import {
   Alert,
   Box,
@@ -46,7 +46,13 @@ export default function ChatsPage() {
   const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const timezone = company?.timezone || "Europe/Moscow";
-  const companyId = getCompanyId();
+  const companyId = company?.id || getCompanyId();
+
+  useEffect(() => {
+    if (company?.id) {
+      setCompanyId(company.id);
+    }
+  }, [company?.id]);
   const load = async () => {
     if (!companyId) return;
     const r = await api.get("/conversations", { params: { companyId } });

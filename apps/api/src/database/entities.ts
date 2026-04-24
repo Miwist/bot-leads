@@ -48,6 +48,8 @@ export class Company {
   @Column({ type: "text", nullable: true }) assistantInstruction: string | null;
   /** Подпись в общем боте, чтобы отличить компанию с похожим названием. */
   @Column({ type: "text", nullable: true }) clientDisambiguation: string | null;
+  /** Создавать заявку сразу после первого сообщения клиента (после согласия). */
+  @Column({ type: "boolean", default: false }) createLeadFromFirstMessage: boolean;
   @Column({ type: "varchar", default: "Europe/Moscow" }) timezone: string;
   @Column({ type: "jsonb", default: () => "'[]'::jsonb" })
   dataFields: string[];

@@ -199,19 +199,42 @@ export class TimewebAiService {
   /** Расшифровка / смысл голоса (WAV base64, 16 kHz mono — см. ffmpeg в Telegram). */
   async interpretVoiceWavBase64(wavBase64: string): Promise<string | null> {
     if (!this.client || !this.agentId || !wavBase64.trim()) return null;
+    const clean = wavBase64.trim().replace(/\s+/g, "");
+    if (clean.length < 64) {
+      this.log.warn("Timeweb voice interpret skipped: audio payload too short");
+      return null;
+    }
+    const prompt =
+      "Перепиши смысл реплики пользователя кратко на русском, как одно короткое текстовое сообщение (без «пользователь сказал»). Если неразборчиво — так и напиши.";
     try {
       const agent = this.client.agent(this.agentId);
+      // Some providers expect data-uri, others raw base64. Try both to avoid hard 400s.
       const res = await agent.chatWithAudio({
-        text: "Перепиши смысл реплики пользователя кратко на русском, как одно короткое текстовое сообщение (без «пользователь сказал»). Если неразборчиво — так и напиши.",
-        audio: wavBase64.trim(),
+        text: prompt,
+        audio: `data:audio/wav;base64,${clean}`,
         max_tokens: 256,
         temperature: 0.3,
       });
       const t = res.text?.trim();
       return t && t.length > 0 ? t.slice(0, 1200) : null;
     } catch (e) {
-      this.log.warn(`Timeweb voice interpret failed: ${(e as Error).message}`);
-      return null;
+      const firstError = e as Error;
+      try {
+        const agent = this.client.agent(this.agentId);
+        const res = await agent.chatWithAudio({
+          text: prompt,
+          audio: clean,
+          max_tokens: 256,
+          temperature: 0.3,
+        });
+        const t = res.text?.trim();
+        return t && t.length > 0 ? t.slice(0, 1200) : null;
+      } catch (e2) {
+        this.log.warn(
+          `Timeweb voice interpret failed: first=${firstError.message}; fallback=${(e2 as Error).message}; audioBase64Len=${clean.length}`,
+        );
+        return null;
+      }
     }
   }
 
